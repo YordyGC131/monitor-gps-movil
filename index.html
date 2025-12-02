@@ -3,14 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monitor ESP32 - Android Full</title>
+    <title>Monitor Geocerca BLE</title>
     
-    <!-- Mapa -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- DRIVER OBLIGATORIO PARA ANDROID -->
-    <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15/dist/serial.min.js"></script>
 
     <style>
         body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #2c3e50; }
@@ -18,28 +14,29 @@
         #sidebar {
             width: 300px; background-color: #2c3e50; color: white;
             display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.3); z-index: 1000; flex-shrink: 0; 
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5); z-index: 1000; flex-shrink: 0;
         }
-        h2 { text-align: center; margin: 0 0 20px 0; font-size: 18px; }
+        h2 { text-align: center; margin: 0 0 20px 0; font-size: 20px; }
         .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; }
         .status-box { padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 13px; }
         #lbl-connection { background-color: #c0392b; margin-bottom: 10px; } 
         #lbl-zone-status { background-color: #95a5a6; color: white; }
         .data-panel { background-color: #34495e; padding: 10px; border-radius: 4px; margin-top: 5px; border: 1px solid #465c71; text-align: center; }
         .coord-text { font-family: monospace; font-size: 15px; color: #3498db; font-weight: bold; display: block; }
-        button { padding: 12px; margin-top: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px; }
+        button { padding: 12px; margin-top: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px; color: white;}
         button:active { transform: scale(0.98); }
-        .btn-green { background-color: #27ae60; color: white; }
-        .btn-purple { background-color: #8e44ad; color: white; }
-        .btn-orange { background-color: #d35400; color: white; }
-        .btn-red { background-color: #c0392b; color: white; }
+        .btn-green { background-color: #27ae60; }
+        .btn-purple { background-color: #8e44ad; }
+        .btn-orange { background-color: #d35400; }
+        .btn-red { background-color: #c0392b; }
         #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; }
         #map { flex-grow: 1; height: 100%; cursor: crosshair; }
+        
         #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 2000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         .loader-box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; border: 1px solid #ddd; }
         .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 15px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
+
         @media (max-width: 600px) {
             body { flex-direction: column; }
             #sidebar { width: 100%; height: auto; padding: 10px; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; }
@@ -56,24 +53,29 @@
     <div id="sidebar">
         <h2>CERCA VIRTUAL</h2>
         <div style="width: 100%;"><div id="lbl-connection" class="status-box">DESCONECTADO</div></div>
+        
         <div style="width: 100%;">
-            <div class="label-title">PUERTO COM:</div>
-            <button id="btn-connect" class="btn-green" onclick="conectarAndroid()">🔌 CONECTAR (Android)</button>
+            <div class="label-title">CONEXIÓN:</div>
+            <button id="btn-connect" class="btn-green" onclick="conectarBLE()">📡 CONECTAR BLUETOOTH</button>
         </div>
+
         <div style="width: 100%;">
             <div class="label-title">ESTADO DE ZONA:</div>
             <div id="lbl-zone-status" class="status-box">---</div>
         </div>
+
         <div class="data-panel" style="width: 100%;">
             <div style="font-size: 10px; color: #ecf0f1; margin-bottom:5px;">POSICIÓN ACTUAL</div>
             <span id="val-lat" class="coord-text">Lat: 0.000000</span>
             <span id="val-lon" class="coord-text">Lon: 0.000000</span>
         </div>
+
         <div id="lbl-instruction" style="width: 100%;"></div>
+
         <div style="width: 100%; margin-top: auto;">
-            <button class="btn-purple full-width-mobile" onclick="configManual()">⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange full-width-mobile" onclick="toggleDrawMode()">✏ DIBUJAR (Arrastrar)</button>
-            <button class="btn-red full-width-mobile" onclick="factoryReset()">⚠ RESET</button>
+            <button class="btn-purple full-width-mobile" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
+            <button id="btn-draw" class="btn-orange full-width-mobile" onclick="toggleDrawMode()">✏ DIBUJAR CERCA (Arrastrar)</button>
+            <button class="btn-red full-width-mobile" onclick="factoryReset()">⚠ BORRAR COORDENADAS</button>
         </div>
     </div>
 
@@ -88,107 +90,120 @@
     </div>
 
     <script>
-        // --- FORZAR USO DE LA LIBRERÍA "SERIAL" (POLYFILL) ---
-        // Esto ignora si el navegador tiene serial nativo o no.
-        // Usa la librería que cargamos en el <head> que es experta en Android.
-        var androidSerial = serial; 
+        // CONFIGURACIÓN BLE (UUIDs estándar de Nordic UART)
+        const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+        const CHAR_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // Escribir
+        const CHAR_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // Leer
 
-        let port, reader, writer;
+        let device, server, rxChar, txChar;
         let map, polygonLayer, markersLayer, myMarker;
         let isConnected = false;
         let isLoading = false;
         let isDrawing = false;
         let startPoint = null;
         let tempRect = null;
+        let buffer = ""; // Para reconstruir mensajes partidos del BLE
 
         window.onload = function() {
             map = L.map('map', { zoomControl: false }).setView([4.570868, -75.641], 16);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
             polygonLayer = L.layerGroup().addTo(map);
             markersLayer = L.layerGroup().addTo(map);
             map.on('mousedown touchstart', onDragStart);
             map.on('mousemove touchmove', onDragMove);
             map.on('mouseup touchend', onDragEnd);
-            document.getElementById('map').oncontextmenu = function(e) { e.preventDefault(); };
+            document.getElementById('map').oncontextmenu = (e) => e.preventDefault();
         };
 
-        // --- CONEXIÓN 100% ANDROID ---
-        async function conectarAndroid() {
+        // --- CONEXIÓN BLUETOOTH ---
+        async function conectarBLE() {
             if (isConnected) { location.reload(); return; }
 
             try {
-                showLoading("🔌 Conectando...", "Seleccione su dispositivo USB");
-
-                // FILTROS VACÍOS PARA QUE MUESTRE TODO LO QUE TENGA EL CELULAR CONECTADO
-                // Esto es clave para que aparezca el CH340 en Xiaomi
-                port = await androidSerial.requestPort({ filters: [] });
+                showLoading("📡 Conectando...", "Selecciona 'Geocerca_BLE'");
                 
-                await port.open({ baudRate: 115200 });
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'Geocerca' }],
+                    optionalServices: [SERVICE_UUID]
+                });
 
-                const textDecoder = new TextDecoderStream();
-                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-                reader = textDecoder.readable.getReader();
+                server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                
+                rxChar = await service.getCharacteristic(CHAR_RX_UUID);
+                txChar = await service.getCharacteristic(CHAR_TX_UUID);
 
-                const textEncoder = new TextEncoderStream();
-                const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
-                writer = textEncoder.writable.getWriter();
+                await txChar.startNotifications();
+                txChar.addEventListener('characteristicvaluechanged', handleNotifications);
 
                 isConnected = true;
-                document.getElementById('lbl-connection').innerText = "CONECTADO";
+                document.getElementById('lbl-connection').innerText = "CONECTADO (BLE)";
                 document.getElementById('lbl-connection').style.backgroundColor = "#27ae60";
                 document.getElementById('btn-connect').innerText = "DESCONECTAR";
-                document.getElementById('btn-connect').classList.remove("btn-green");
-                document.getElementById('btn-connect').classList.add("btn-red");
+                document.getElementById('btn-connect').className = "btn-red";
 
-                // Handshake
-                setTimeout(() => sendCommand("GEOJSON"), 1000);
-                readLoop();
+                // Pedir mapa inicial
+                setTimeout(() => sendCmd("GEOJSON"), 1000);
 
-            } catch (err) {
+            } catch (error) {
                 hideLoading();
-                alert("ERROR DE CONEXIÓN:\n" + err);
+                alert("Error BLE: " + error);
             }
         }
 
-        async function readLoop() {
-            while (true) {
-                try {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    if (value) {
-                        let lines = value.split('\n');
-                        for (let line of lines) {
-                            if (line.trim() !== "") processLine(line.trim());
-                        }
-                    }
-                } catch (e) { break; }
+        function handleNotifications(event) {
+            const value = event.target.value;
+            const decoder = new TextDecoder('utf-8');
+            const chunk = decoder.decode(value);
+            
+            // BLE envía paquetes pequeños (20 bytes). Hay que unirlos.
+            // Si el chunk contiene "DATA:" o "GEOJSON:", es un inicio de mensaje.
+            if (chunk.includes("DATA:") || chunk.includes("GEOJSON:")) {
+                // Si había algo pendiente en el buffer y no está completo, lo procesamos igual
+                if (buffer.length > 0) processFullMessage(buffer);
+                buffer = chunk; 
+            } else {
+                buffer += chunk;
+            }
+
+            // Detectar fin de mensaje JSON
+            if (buffer.trim().endsWith("}")) {
+                processFullMessage(buffer);
+                buffer = "";
+            } else if (buffer.trim().endsWith("]}}]}")) { // Fin de GeoJSON
+                processFullMessage(buffer);
+                buffer = "";
             }
         }
 
-        async function sendCommand(cmd) {
-            if (writer) await writer.write(cmd + "\n");
-        }
-
-        function processLine(line) {
+        function processFullMessage(msg) {
             // Handshake Logic
-            if (isLoading && (line.includes("DATA:") || line.includes("GEOJSON:") || line.includes("SYSTEM:"))) {
+            if (isLoading) {
                 let title = document.getElementById('load-title').innerText;
                 if(title.includes("Conectando")) hideLoading();
-                else if(title.includes("Actualizando") && (line.includes("GEOJSON:") || line.includes("JSON_START:"))) hideLoading();
+                else if(title.includes("Actualizando") && msg.includes("GEOJSON")) hideLoading();
             }
 
-            if (line.startsWith("DATA:")) {
+            if (msg.includes("DATA:")) {
                 try {
-                    let data = JSON.parse(line.replace("DATA:", ""));
+                    let jsonPart = msg.split("DATA:")[1];
+                    let data = JSON.parse(jsonPart);
                     updateUI(data);
                 } catch(e){}
-            } else if (line.startsWith("GEOJSON:") || line.startsWith("JSON_START:")) {
+            } 
+            else if (msg.includes("GEOJSON:")) {
                 try {
-                    let jsonStr = line.replace("GEOJSON:", "").replace("JSON_START:", "");
-                    drawGeoJSON(jsonStr);
+                    let jsonPart = msg.split("GEOJSON:")[1];
+                    drawGeoJSON(jsonPart);
                 } catch(e){}
             }
+        }
+
+        async function sendCmd(cmd) {
+            if (!rxChar) return;
+            const encoder = new TextEncoder();
+            await rxChar.writeValue(encoder.encode(cmd));
         }
 
         function updateUI(data) {
@@ -231,7 +246,7 @@
 
         // --- DIBUJO ---
         function toggleDrawMode() {
-            if (!isConnected) return alert("Conecta el ESP32 primero");
+            if (!isConnected) return alert("Conecta el Bluetooth primero");
             isDrawing = !isDrawing;
             const btn = document.getElementById('btn-draw');
             const info = document.getElementById('lbl-instruction');
@@ -241,7 +256,7 @@
                 info.innerText = "ARRASTRA EL DEDO EN EL MAPA";
                 map.dragging.disable();
             } else {
-                btn.innerText = "✏ DIBUJAR CERCA (Arrastrar)"; btn.style.backgroundColor = "#d35400";
+                btn.innerText = "✏ DIBUJAR (Arrastrar)"; btn.style.backgroundColor = "#d35400";
                 info.innerText = "";
                 map.dragging.enable();
                 if(tempRect) { map.removeLayer(tempRect); tempRect = null; }
@@ -261,19 +276,21 @@
         }
         function onDragEnd(e) {
             if (!isDrawing || !startPoint) return;
+            
             const bounds = tempRect.getBounds();
-            const p1 = [bounds.getNorthEast().lat, bounds.getSouthWest().lng];
-            const p2 = [bounds.getNorthEast().lat, bounds.getNorthEast().lng];
-            const p3 = [bounds.getSouthWest().lat, bounds.getNorthEast().lng];
-            const p4 = [bounds.getSouthWest().lat, bounds.getSouthWest().lng];
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            const p1 = [ne.lat, sw.lng]; const p2 = [ne.lat, ne.lng]; const p3 = [sw.lat, ne.lng]; const p4 = [sw.lat, sw.lng];
             const str = `${p1[0]},${p1[1]},${p2[0]},${p2[1]},${p3[0]},${p3[1]},${p4[0]},${p4[1]}`;
+            
             map.removeLayer(tempRect); tempRect = null; startPoint = null;
+            
             if(confirm("¿Guardar esta zona?")) {
-                sendCommand("CONFIG");
+                sendCmd("CONFIG");
                 setTimeout(() => {
-                    sendCommand(str);
-                    showLoading("📡 Actualizando Zona...", "Guardando...");
-                    setTimeout(() => sendCommand("GEOJSON"), 3000);
+                    sendCmd(str);
+                    showLoading("📡 Actualizando Zona...", "Guardando en memoria...");
+                    setTimeout(() => sendCmd("GEOJSON"), 3500);
                 }, 500);
             }
             toggleDrawMode();
@@ -283,11 +300,11 @@
             if (!isConnected) return alert("Conecta primero");
             const val = prompt("Ingresa: Lat1,Lon1,Lat2,Lon2...\nEj: 4.57,-75.64...");
             if (val) {
-                sendCommand("CONFIG");
+                sendCmd("CONFIG");
                 setTimeout(() => {
-                    sendCommand(val);
+                    sendCmd(val);
                     showLoading("📡 Actualizando...", "Guardando...");
-                    setTimeout(() => sendCommand("GEOJSON"), 3000);
+                    setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
         }
@@ -295,7 +312,7 @@
         function factoryReset() {
             if (!isConnected) return alert("Conecta primero");
             if(confirm("¿Borrar todo?")) {
-                sendCommand("RESET");
+                sendCmd("RESET");
                 polygonLayer.clearLayers();
                 markersLayer.clearLayers();
             }
