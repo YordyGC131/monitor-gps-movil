@@ -3,70 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - Panel Izquierdo</title>
+    <title>Monitor Geocerca BLE - Pro</title>
     
     <!-- Librería de Mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* --- ESTRUCTURA PRINCIPAL --- */
-        body { 
-            margin: 0; 
-            display: flex; 
-            flex-direction: row; /* OBLIGA AL PANEL A ESTAR A LA IZQUIERDA */
-            height: 100vh; 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            background: #2c3e50; 
-            overflow: hidden; 
-        }
+        /* --- ESTRUCTURA GENERAL --- */
+        body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #2c3e50; }
         
         /* --- PANEL LATERAL IZQUIERDO --- */
         #sidebar {
-            width: 320px; /* Ancho fijo */
-            background-color: #222d32; 
-            color: white;
-            display: flex; 
-            flex-direction: column; 
-            padding: 15px; 
-            box-sizing: border-box;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.5); 
-            z-index: 2000; 
-            flex-shrink: 0; /* No permitir que se encoja */
-            overflow-y: auto;
-            border-right: 1px solid #444;
+            width: 300px; background-color: #2c3e50; color: white;
+            display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.3); z-index: 1000; flex-shrink: 0;
         }
 
-        /* Títulos y Textos del Panel */
-        h2 { text-align: center; margin: 0 0 20px 0; font-size: 20px; color: #ecf0f1; letter-spacing: 1px; border-bottom: 1px solid #444; padding-bottom: 10px; }
-        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; text-transform: uppercase; }
+        h2 { text-align: center; margin: 0 0 20px 0; font-size: 18px; color: #ecf0f1; letter-spacing: 1px; }
+        
+        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; }
         
         /* Cajas de Estado */
-        .status-box { 
-            padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 13px; 
-            box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
-        }
-        #lbl-connection { background-color: #c0392b; transition: 0.3s; } 
-        #lbl-zone-status { background-color: #7f8c8d; color: white; transition: 0.3s; }
+        .status-box { padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 13px; }
+        #lbl-connection { background-color: #c0392b; margin-bottom: 10px; } 
+        #lbl-zone-status { background-color: #95a5a6; color: white; }
 
-        /* Panel de Coordenadas */
+        /* Panel de Datos */
         .data-panel {
             background-color: #34495e; padding: 10px; border-radius: 4px;
             margin-top: 5px; border: 1px solid #465c71; text-align: center;
         }
-        .coord-text { font-family: 'Courier New', monospace; font-size: 14px; color: #3498db; font-weight: bold; display: block; }
+        .coord-text { font-family: monospace; font-size: 15px; color: #3498db; font-weight: bold; display: block; }
 
         /* Instrucciones */
         #lbl-instruction {
-            color: #f1c40f; text-align: center; font-style: italic; min-height: 30px; margin-top: 15px; 
-            font-size: 13px; font-weight: bold; line-height: 1.4;
+            color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; font-weight: bold;
         }
 
         /* Botones */
         button {
             padding: 12px; margin-top: 8px; border: none; border-radius: 4px;
             font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px; color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         button:active { transform: scale(0.98); }
 
@@ -76,63 +54,64 @@
         .btn-red { background-color: #c0392b; }
         .btn-gray { background-color: #7f8c8d; }
 
-        /* --- CONTENEDOR DERECHO (MAPA) --- */
-        #map-container { 
-            flex-grow: 1; /* Ocupa todo el espacio restante a la derecha */
-            position: relative; 
-            height: 100%; 
-        }
-        
+        /* --- MAPA --- */
+        #map-container { flex-grow: 1; position: relative; height: 100%; }
         #map { width: 100%; height: 100%; }
 
-        /* --- EL VIDRIO (Capa de Dibujo) --- */
+        /* VIDRIO (TOUCH PAD) */
         #touch-pad {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 3000; 
-            background: rgba(0, 0, 0, 0.0); 
-            display: none; 
-            touch-action: none; /* Bloquea scroll en móvil */
-            cursor: crosshair;
+            z-index: 3000; background: rgba(0,0,0,0); display: none;
+            touch-action: none; cursor: crosshair;
         }
 
-        /* Mensaje Flotante en el Mapa */
-        #msg-overlay {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.85); color: white; padding: 20px 30px; border-radius: 10px;
-            display: none; z-index: 4000; text-align: center; font-size: 16px; font-weight: bold;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        /* --- OVERLAY DE CARGA --- */
+        #loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.9); z-index: 4000;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
         }
+        .loader-box {
+            background: white; padding: 25px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; border: 1px solid #ddd;
+        }
+        .spinner {
+            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 15px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- RESPONSIVE PARA MÓVILES PEQUEÑOS --- */
-        @media (max-width: 700px) {
-            body { flex-direction: column; } /* En móvil pasa arriba para no aplastar el mapa */
-            #sidebar { width: 100%; height: auto; max-height: 40vh; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 10px; }
-            h2 { display: none; } /* Ocultar título en móvil */
+        /* MODO MÓVIL RESPONSIVE */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            #sidebar { width: 100%; height: auto; padding: 10px; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+            h2 { display: none; }
             .label-title { display: none; }
             .data-panel { display: none; } 
-            #lbl-connection, #lbl-zone-status { width: 48%; font-size: 11px; margin: 0; }
-            button { width: 32%; font-size: 11px; padding: 10px; margin-top: 5px; }
-            #lbl-instruction { width: 100%; margin: 5px 0; min-height: auto; font-size: 11px; }
-            #map-container { height: 60vh; }
+            #lbl-connection, #lbl-zone-status { width: 48%; font-size: 11px; padding: 8px; margin: 0; }
+            button { width: 32%; font-size: 10px; padding: 8px; margin-top: 5px; }
+            #lbl-instruction { width: 100%; margin: 5px 0; }
+            #map-container { height: 65vh; }
         }
     </style>
 </head>
 <body>
 
-    <!-- PANEL IZQUIERDO -->
+    <!-- PANEL LATERAL -->
     <div id="sidebar">
         <h2>CERCA VIRTUAL</h2>
-        
+
         <div style="width: 100%; display: flex; gap: 5px; margin-bottom: 5px;">
             <div id="lbl-connection" class="status-box" style="flex:1;">DESCONECTADO</div>
             <div id="lbl-zone-status" class="status-box" style="flex:1;">---</div>
         </div>
         
         <div class="label-title">CONEXIÓN:</div>
-        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
+        <button id="btn-connect" class="btn-green" onclick="conectarBLE()">📡 CONECTAR BLUETOOTH</button>
 
-        <div class="label-title">COORDENADAS:</div>
         <div class="data-panel">
+            <div style="font-size: 10px; color: #ecf0f1; margin-bottom:5px;">POSICIÓN ACTUAL</div>
             <span id="val-lat" class="coord-text">Lat: 0.000000</span>
             <span id="val-lon" class="coord-text">Lon: 0.000000</span>
         </div>
@@ -140,25 +119,31 @@
         <div id="lbl-instruction"></div>
 
         <div style="margin-top: auto; width: 100%; display: flex; flex-direction: column; gap: 5px;">
-            <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR (Arrastrar)</button>
-            <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
+            <button class="btn-purple" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
+            <button id="btn-draw" class="btn-orange" onclick="toggleDrawMode()">✏ DIBUJAR (Arrastrar)</button>
+            <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="toggleDrawMode()">❌ CANCELAR DIBUJO</button>
             <button class="btn-red" onclick="factoryReset()">⚠ BORRAR ZONA</button>
         </div>
     </div>
 
-    <!-- CONTENEDOR DEL MAPA (DERECHA) -->
+    <!-- MAPA -->
     <div id="map-container">
         <div id="map"></div>
-        <!-- VIDRIO TRANSPARENTE PARA DIBUJAR -->
+        <!-- Capa para dibujar con precisión -->
         <div id="touch-pad"></div>
     </div>
 
-    <!-- OVERLAY DE CARGA/MENSAJES -->
-    <div id="msg-overlay">Cargando...</div>
+    <!-- PANTALLA DE CARGA -->
+    <div id="loading-overlay">
+        <div class="loader-box">
+            <h3 id="load-title" style="margin:0; color:#333;">Cargando...</h3>
+            <div class="spinner"></div>
+            <div id="load-desc" style="color:#666;">Espere respuesta...</div>
+        </div>
+    </div>
 
     <script>
-        // --- CONFIGURACIÓN BLE ---
+        // --- UUIDs BLE ---
         const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
         const RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
         const TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
@@ -168,11 +153,11 @@
         let isConnected = false;
         let buffer = "";
         
-        // Variables de dibujo
+        let isDrawing = false;
         let startLatLng = null;
         let tempRect = null;
 
-        // --- INICIALIZAR ---
+        // --- INICIO ---
         window.onload = () => {
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -181,23 +166,26 @@
             fenceLayer = L.layerGroup().addTo(map);
             tempLayer = L.layerGroup().addTo(map);
 
-            // Eventos del Vidrio (Dibujo con precisión)
+            // Configurar eventos del "Vidrio"
             const pad = document.getElementById('touch-pad');
             
-            // Móvil
+            // Eventos Táctiles (Celular)
             pad.addEventListener('touchstart', handleInputStart, {passive: false});
             pad.addEventListener('touchmove', handleInputMove, {passive: false});
             pad.addEventListener('touchend', handleInputEnd, {passive: false});
-            // PC
+
+            // Eventos Mouse (PC)
             pad.addEventListener('mousedown', handleInputStart);
             pad.addEventListener('mousemove', handleInputMove);
             pad.addEventListener('mouseup', handleInputEnd);
         };
 
-        // --- BLUETOOTH ---
+        // --- LÓGICA BLUETOOTH ---
         async function connectBLE() {
+            if (isConnected) { location.reload(); return; }
+
             try {
-                showMsg("Buscando ESP32...");
+                showLoading("Buscando ESP32...", "Selecciona 'Geocerca_BLE'");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: "Geocerca" }],
                     optionalServices: [SERVICE_UUID]
@@ -214,9 +202,9 @@
                 bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
                 isConnected = true;
-                document.getElementById('status-bt').innerText = "CONECTADO"; // No cambia color para mantener diseño limpio, solo texto
+                document.getElementById('status-bt').innerText = "CONECTADO"; // Para compatibilidad
+                document.getElementById('lbl-connection').innerText = "CONECTADO (BLE)";
                 document.getElementById('lbl-connection').style.backgroundColor = "#27ae60";
-                document.getElementById('lbl-connection').innerText = "CONECTADO";
                 document.getElementById('btn-connect').innerText = "DESCONECTAR";
                 document.getElementById('btn-connect').className = "btn-red";
                 
@@ -233,9 +221,7 @@
             isConnected = false;
             document.getElementById('lbl-connection').innerText = "DESCONECTADO";
             document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
-            document.getElementById('btn-connect').innerText = "📡 CONECTAR BLUETOOTH";
-            document.getElementById('btn-connect').className = "btn-green";
-            alert("Dispositivo Desconectado");
+            alert("Bluetooth desconectado");
         }
 
         function handleNotifications(event) {
@@ -246,7 +232,9 @@
             if (chunk.includes("DATA:") || chunk.includes("GEOJSON:")) {
                 if(buffer.length > 0) processMsg(buffer);
                 buffer = chunk;
-            } else { buffer += chunk; }
+            } else {
+                buffer += chunk;
+            }
 
             if (buffer.trim().endsWith("}") || buffer.trim().endsWith("]}}]}")) {
                 processMsg(buffer);
@@ -281,7 +269,6 @@
         function updateUI(data) {
             document.getElementById('val-lat').innerText = `Lat: ${data.lat.toFixed(6)}`;
             document.getElementById('val-lon').innerText = `Lon: ${data.lon.toFixed(6)}`;
-            
             const zoneBadge = document.getElementById('lbl-zone-status');
             if(data.status === "INSIDE") {
                 zoneBadge.innerText = "DENTRO (SEGURO)"; zoneBadge.style.backgroundColor = "#27ae60";
@@ -311,28 +298,38 @@
             if(latlngs.length > 0) map.fitBounds(L.polygon(latlngs).getBounds());
         }
 
-        // --- LÓGICA DIBUJO CON VIDRIO (PRECISIÓN) ---
+        // --- LÓGICA DE DIBUJO (PRECISIÓN) ---
         
-        function startDrawing() {
+        function toggleDrawMode() {
             if(!isConnected) return alert("Conecta el Bluetooth primero");
             
-            document.getElementById('touch-pad').style.display = 'block';
-            document.getElementById('btn-draw').style.display = 'none';
-            document.getElementById('btn-cancel').style.display = 'inline-block';
-            document.getElementById('lbl-instruction').innerText = "MODO DIBUJO: Arrastra en el mapa";
-        }
+            isDrawing = !isDrawing;
+            const pad = document.getElementById('touch-pad');
+            const btnDraw = document.getElementById('btn-draw');
+            const btnCancel = document.getElementById('btn-cancel');
+            const lbl = document.getElementById('lbl-instruction');
 
+            if(isDrawing) {
+                pad.style.display = 'block'; // Activar Vidrio
+                btnDraw.style.display = 'none';
+                btnCancel.style.display = 'block';
+                lbl.innerText = "MODO DIBUJO: Arrastra en el mapa";
+            } else {
+                pad.style.display = 'none';
+                btnDraw.style.display = 'block';
+                btnCancel.style.display = 'none';
+                lbl.innerText = "";
+                tempLayer.clearLayers();
+                startLatLng = null;
+                tempRect = null;
+            }
+        }
+        
+        // Detener dibujo forzado
         function stopDrawing() {
-            document.getElementById('touch-pad').style.display = 'none';
-            document.getElementById('btn-draw').style.display = 'inline-block';
-            document.getElementById('btn-cancel').style.display = 'none';
-            document.getElementById('lbl-instruction').innerText = "";
-            tempLayer.clearLayers();
-            startLatLng = null;
-            tempRect = null;
+            if(isDrawing) toggleDrawMode();
         }
 
-        // Calculadora de Coordenadas Reales
         function getMapCoords(e) {
             let clientX, clientY;
             if (e.type.startsWith('touch')) {
@@ -342,12 +339,11 @@
                 clientX = e.clientX;
                 clientY = e.clientY;
             }
-
+            // Calcular posición relativa al mapa
             const mapContainer = document.getElementById('map');
             const rect = mapContainer.getBoundingClientRect();
             const x = clientX - rect.left;
             const y = clientY - rect.top;
-
             return map.containerPointToLatLng([x, y]);
         }
 
@@ -372,6 +368,7 @@
             const bounds = tempRect.getBounds();
             const ne = bounds.getNorthEast();
             const sw = bounds.getSouthWest();
+            
             const p1 = [ne.lat, sw.lng]; const p2 = [ne.lat, ne.lng]; 
             const p3 = [sw.lat, ne.lng]; const p4 = [sw.lat, sw.lng];
             const str = `${p1[0]},${p1[1]},${p2[0]},${p2[1]},${p3[0]},${p3[1]},${p4[0]},${p4[1]}`;
@@ -380,13 +377,13 @@
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
-                    showMsg("Guardando...");
+                    showMsg("Guardando en el ESP32...");
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
             stopDrawing();
         }
-
+        
         function configManual() {
             if (!isConnected) return alert("Conecta primero");
             const val = prompt("Ingresa coordenadas:\nEj: 4.57,-75.64...");
@@ -408,13 +405,13 @@
             }
         }
 
-        function showMsg(txt) {
-            const el = document.getElementById('msg-overlay');
-            el.innerText = txt; el.style.display = 'block';
+        function showMsg(t, d) { 
+            const el = document.getElementById('loading-overlay');
+            document.getElementById('load-title').innerText = t;
+            document.getElementById('load-desc').innerText = d || "";
+            el.style.display = 'flex'; 
         }
-        function hideMsg() {
-            document.getElementById('msg-overlay').style.display = 'none';
-        }
+        function hideMsg() { document.getElementById('loading-overlay').style.display = 'none'; }
 
     </script>
 </body>
