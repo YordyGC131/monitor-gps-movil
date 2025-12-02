@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - Precisión Fix</title>
+    <title>Geocerca BLE - Touch Precision</title>
     
     <!-- Librería de Mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -37,13 +37,23 @@
         }
         .btn-bt { background: #2980b9; }
         .btn-draw { background: #e67e22; }
-        .btn-cancel { background: #c0392b; display: none; }
+        .btn-cancel { background: #c0392b; display: none; } /* Oculto por defecto */
 
         /* Contenedor del Mapa */
         #map-container { flex-grow: 1; position: relative; }
-        
-        /* CRÍTICO: touch-action none evita que el navegador haga scroll al arrastrar el dedo */
-        #map { width: 100%; height: 100%; touch-action: none; }
+        #map { width: 100%; height: 100%; }
+
+        /* --- EL VIDRIO (Touch Pad) --- */
+        #touch-pad {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 3000; /* Encima del mapa */
+            background: rgba(0, 0, 0, 0.0); /* Transparente */
+            display: none; /* Oculto al inicio */
+            
+            /* ESTO ES LO QUE HACE LA MAGIA EN EL CELULAR: */
+            touch-action: none; 
+            cursor: crosshair;
+        }
 
         /* Mensaje Flotante */
         #msg-overlay {
@@ -63,14 +73,16 @@
         
         <div style="width: 100%; display: flex; gap: 5px;">
             <button class="btn btn-bt" onclick="connectBLE()">📡 CONECTAR</button>
-            <button id="btn-draw" class="btn btn-draw" onclick="toggleDrawMode()">✏ DIBUJAR</button>
-            <button id="btn-cancel" class="btn btn-cancel" onclick="toggleDrawMode()">❌ CANCELAR</button>
+            <button id="btn-draw" class="btn btn-draw" onclick="startDrawing()">✏ DIBUJAR</button>
+            <button id="btn-cancel" class="btn btn-cancel" onclick="stopDrawing()">❌ CANCELAR</button>
         </div>
     </div>
 
     <!-- Área del Mapa -->
     <div id="map-container">
         <div id="map"></div>
+        <!-- VIDRIO TRANSPARENTE -->
+        <div id="touch-pad"></div>
     </div>
 
     <div id="msg-overlay">Cargando...</div>
@@ -84,14 +96,13 @@
         let bluetoothDevice, rxChar, txChar;
         let map, myMarker, fenceLayer, tempLayer;
         let isConnected = false;
-        let buffer = ""; 
+        let buffer = "";
         
         // Variables de dibujo
-        let isDrawing = false;
         let startLatLng = null;
         let tempRect = null;
 
-        // --- INICIO ---
+        // --- INICIALIZAR ---
         window.onload = () => {
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -101,45 +112,24 @@
             fenceLayer = L.layerGroup().addTo(map);
             tempLayer = L.layerGroup().addTo(map);
 
-            // --- EVENTOS DE MAPA (PRECISIÓN CORREGIDA) ---
+            // Configurar eventos del "Vidrio"
+            const pad = document.getElementById('touch-pad');
             
-            // Eventos de Mouse (PC)
-            map.on('mousedown', onMapDown);
-            map.on('mousemove', onMapMove);
-            map.on('mouseup', onMapUp);
+            // Eventos Táctiles (Celular)
+            pad.addEventListener('touchstart', handleInputStart, {passive: false});
+            pad.addEventListener('touchmove', handleInputMove, {passive: false});
+            pad.addEventListener('touchend', handleInputEnd, {passive: false});
 
-            // Eventos Táctiles (Celular) - Usamos los mismos handlers
-            map.on('touchstart', function(e) {
-                if(isDrawing) {
-                    // Evita que Android intente hacer scroll o refresh
-                    L.DomEvent.stopPropagation(e);
-                    if(e.originalEvent) e.originalEvent.preventDefault();
-                    onMapDown(e);
-                }
-            });
-
-            map.on('touchmove', function(e) {
-                if(isDrawing) {
-                    L.DomEvent.stopPropagation(e);
-                    if(e.originalEvent) e.originalEvent.preventDefault();
-                    onMapMove(e);
-                }
-            });
-
-            map.on('touchend', function(e) {
-                if(isDrawing) {
-                    L.DomEvent.stopPropagation(e);
-                    if(e.originalEvent) e.originalEvent.preventDefault();
-                    onMapUp(e);
-                }
-            });
+            // Eventos Mouse (PC)
+            pad.addEventListener('mousedown', handleInputStart);
+            pad.addEventListener('mousemove', handleInputMove);
+            pad.addEventListener('mouseup', handleInputEnd);
         };
 
-        // --- LÓGICA BLUETOOTH WEB ---
+        // --- LÓGICA BLUETOOTH ---
         async function connectBLE() {
             try {
                 showMsg("Buscando ESP32...");
-                
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: "Geocerca" }],
                     optionalServices: [SERVICE_UUID]
@@ -147,7 +137,6 @@
 
                 const server = await bluetoothDevice.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                
                 rxChar = await service.getCharacteristic(RX_UUID); 
                 txChar = await service.getCharacteristic(TX_UUID); 
 
@@ -160,7 +149,6 @@
                 document.getElementById('status-bt').innerText = "CONECTADO";
                 document.getElementById('status-bt').className = "badge bg-green";
                 hideMsg();
-                
                 setTimeout(() => sendCmd("GEOJSON"), 500);
 
             } catch (error) {
@@ -182,7 +170,7 @@
             const chunk = decoder.decode(value);
 
             if (chunk.includes("DATA:") || chunk.includes("GEOJSON:")) {
-                if(buffer.length > 0) processMsg(buffer); 
+                if(buffer.length > 0) processMsg(buffer);
                 buffer = chunk;
             } else {
                 buffer += chunk;
@@ -220,7 +208,6 @@
 
         function updateUI(data) {
             document.getElementById('coords').innerText = `Lat: ${data.lat.toFixed(6)} | Lon: ${data.lon.toFixed(6)}`;
-            
             const zoneBadge = document.getElementById('status-zone');
             if(data.status === "INSIDE") {
                 zoneBadge.innerText = "DENTRO (SEGURO)"; zoneBadge.className = "badge bg-green";
@@ -241,91 +228,84 @@
             const data = JSON.parse(jsonStr);
             const coords = data.features[0].geometry.coordinates[0];
             const latlngs = coords.map(p => [p[1], p[0]]);
-            
             fenceLayer.clearLayers();
-            
             L.polygon(latlngs, {color: 'blue', fillOpacity: 0.1}).addTo(fenceLayer);
-            
             latlngs.pop();
             latlngs.forEach(p => {
                 L.circleMarker(p, {radius: 5, color: 'blue'}).addTo(fenceLayer);
             });
-            
             if(latlngs.length > 0) map.fitBounds(L.polygon(latlngs).getBounds());
         }
 
-        // --- LÓGICA DE DIBUJO (LEAFLET PURO) ---
+        // --- LÓGICA DE DIBUJO CON PRECISIÓN GEOMÉTRICA ---
         
-        function toggleDrawMode() {
+        function startDrawing() {
             if(!isConnected) return alert("Conecta el Bluetooth primero");
-            
-            isDrawing = !isDrawing;
-            const btnDraw = document.getElementById('btn-draw');
-            const btnCancel = document.getElementById('btn-cancel');
-
-            if(isDrawing) {
-                // Activar Modo Dibujo
-                btnDraw.style.display = 'none';
-                btnCancel.style.display = 'inline-block';
-                
-                // DESACTIVAR MOVIMIENTO DEL MAPA (CRÍTICO)
-                map.dragging.disable();
-                map.touchZoom.disable();
-                map.doubleClickZoom.disable();
-                map.scrollWheelZoom.disable();
-                map.boxZoom.disable();
-                map.keyboard.disable();
-                if (map.tap) map.tap.disable();
-                document.getElementById('map').style.cursor = 'crosshair';
-                
-                alert("ARRASTRA UN DEDO EN EL MAPA PARA DIBUJAR EL CUADRO");
-            } else {
-                // Cancelar Modo Dibujo
-                btnDraw.style.display = 'inline-block';
-                btnCancel.style.display = 'none';
-                
-                // REACTIVAR MAPA
-                map.dragging.enable();
-                map.touchZoom.enable();
-                map.doubleClickZoom.enable();
-                map.scrollWheelZoom.enable();
-                document.getElementById('map').style.cursor = '';
-                
-                tempLayer.clearLayers();
-                startLatLng = null;
-                tempRect = null;
-            }
+            document.getElementById('touch-pad').style.display = 'block';
+            document.getElementById('btn-draw').style.display = 'none';
+            document.getElementById('btn-cancel').style.display = 'inline-block';
+            alert("DIBUJO ACTIVADO: Arrastra el dedo sobre el mapa.");
         }
 
-        // Al tocar/clickear
-        function onMapDown(e) {
-            if (!isDrawing) return;
+        function stopDrawing() {
+            document.getElementById('touch-pad').style.display = 'none';
+            document.getElementById('btn-draw').style.display = 'inline-block';
+            document.getElementById('btn-cancel').style.display = 'none';
+            tempLayer.clearLayers();
+            startLatLng = null;
+            tempRect = null;
+        }
+
+        // Esta función convierte el click/touch en el Vidrio a coordenadas reales del Mapa
+        function getMapCoords(e) {
+            let clientX, clientY;
             
-            // e.latlng ES PRECISO, viene de Leaflet
-            startLatLng = e.latlng; 
+            if (e.type.startsWith('touch')) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            // OBTENER LA POSICIÓN RELATIVA AL CONTENEDOR DEL MAPA
+            // Esto corrige el desfase causado por la barra superior
+            const mapContainer = document.getElementById('map');
+            const rect = mapContainer.getBoundingClientRect();
             
-            // Crear cuadro rojo inicial
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            // Leaflet convierte el punto relativo (x,y) a Lat/Lon
+            return map.containerPointToLatLng([x, y]);
+        }
+
+        function handleInputStart(e) {
+            e.preventDefault(); // Evita scroll en celular
+            startLatLng = getMapCoords(e);
+            
+            // Dibujar punto inicial
             tempLayer.clearLayers();
             tempRect = L.rectangle([startLatLng, startLatLng], {color: "red", weight: 2}).addTo(tempLayer);
         }
 
-        // Al mover dedo/mouse
-        function onMapMove(e) {
-            if (!isDrawing || !startLatLng || !tempRect) return;
+        function handleInputMove(e) {
+            e.preventDefault();
+            if (!startLatLng || !tempRect) return;
             
-            // Actualizar tamaño del cuadro
-            tempRect.setBounds([startLatLng, e.latlng]);
+            const currentLatLng = getMapCoords(e);
+            tempRect.setBounds([startLatLng, currentLatLng]);
         }
 
-        // Al soltar
-        function onMapUp(e) {
-            if (!isDrawing || !startLatLng || !tempRect) return;
+        function handleInputEnd(e) {
+            e.preventDefault();
+            if (!startLatLng || !tempRect) return;
 
             const bounds = tempRect.getBounds();
             const ne = bounds.getNorthEast();
             const sw = bounds.getSouthWest();
             
-            // Generar coordenadas
+            // 4 Puntos
             const p1 = [ne.lat, sw.lng];
             const p2 = [ne.lat, ne.lng];
             const p3 = [sw.lat, ne.lng];
@@ -333,7 +313,7 @@
             
             const str = `${p1[0]},${p1[1]},${p2[0]},${p2[1]},${p3[0]},${p3[1]},${p4[0]},${p4[1]}`;
             
-            if(confirm("¿Guardar esta zona nueva?")) {
+            if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
@@ -341,8 +321,7 @@
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
-            
-            toggleDrawMode(); // Salir y reactivar mapa
+            stopDrawing();
         }
 
         function showMsg(txt) {
