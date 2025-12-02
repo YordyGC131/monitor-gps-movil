@@ -1,358 +1,196 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - Touch Fix</title>
-    
-    <!-- Leaflet CSS/JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+#include <TinyGPS++.h>
+#include <Preferences.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
-    <style>
-        /* CSS para bloquear rebotes en móvil */
-        html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; font-family: 'Segoe UI', sans-serif; background: #2c3e50; }
+// --- UUIDs ESTÁNDAR UART (Nordic) ---
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+// --- HARDWARE ---
+static const int RXPin = 16; 
+static const int TXPin = 17; 
+static const int LED_TRIGGER = 2; 
+static const uint32_t GPSBaud = 9600;
+
+const double HDOP_MAXIMO = 5.0; 
+const int polyPoints = 4;
+double polyLat[polyPoints]; 
+double polyLon[polyPoints]; 
+
+TinyGPSPlus gps;
+Preferences preferences; 
+
+BLECharacteristic *pTxCharacteristic;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+bool modoConfig = false;
+bool zonaCargada = false;
+
+// --- CALLBACKS DE CONEXIÓN ---
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+    };
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+    }
+};
+
+// --- CALLBACKS DE LECTURA (CORREGIDO PARA ESP32 v3.0+) ---
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      // CORRECCIÓN AQUÍ: Usamos String de Arduino directamente
+      String rxValue = pCharacteristic->getValue(); 
+      
+      if (rxValue.length() > 0) {
+        String cmd = rxValue; // Ya viene como String, no hace falta convertir
+        cmd.trim();
         
-        /* SIDEBAR */
-        #sidebar {
-            width: 300px; background-color: #2c3e50; color: white;
-            display: flex; flex-direction: column; padding: 15px; box-sizing: border-box;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.5); z-index: 1000; flex-shrink: 0;
-            overflow-y: auto;
+        // Procesar Comandos
+        if (cmd == "CONFIG") modoConfig = true;
+        else if (cmd == "GEOJSON") sendGeoJSON();
+        else if (cmd == "RESET") {
+           preferences.begin("geocerca", false);
+           preferences.clear();
+           preferences.end();
+           ESP.restart();
         }
-        h2 { text-align: center; margin: 0 0 15px 0; font-size: 18px; color: #ecf0f1; }
-        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 10px; font-weight: bold; }
-        .status-box { padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 13px; }
-        #lbl-connection { background-color: #c0392b; margin-bottom: 10px; } 
-        #lbl-zone-status { background-color: #95a5a6; color: white; }
-        .data-panel { background-color: #34495e; padding: 10px; border-radius: 4px; margin-top: 5px; border: 1px solid #465c71; text-align: center; }
-        .coord-text { font-family: monospace; font-size: 15px; color: #3498db; font-weight: bold; display: block; }
+        else if (modoConfig) {
+           if(saveCoords(cmd)) {
+             modoConfig = false;
+             delay(500); ESP.restart();
+           }
+        }
+      }
+    }
+
+    bool saveCoords(String d) {
+        double tLat[4], tLon[4];
+        int idx = 0, next = 0;
+        for (int i = 0; i < 8; i++) {
+          next = d.indexOf(',', idx);
+          String s = (next == -1) ? d.substring(idx) : d.substring(idx, next);
+          s.trim();
+          double v = s.toDouble();
+          if (v == 0.0 && s != "0") return false;
+          if (i % 2 == 0) tLat[i/2] = v; else tLon[i/2] = v;
+          if (next == -1 && i < 7) return false;
+          idx = next + 1;
+        }
+        preferences.begin("geocerca", false);
+        for(int i=0; i<4; i++) {
+          preferences.putDouble(("la"+String(i)).c_str(), tLat[i]);
+          preferences.putDouble(("lo"+String(i)).c_str(), tLon[i]);
+        }
+        preferences.putBool("init", true);
+        preferences.end();
+        return true;
+    }
+
+    void sendGeoJSON() {
+        if(!zonaCargada) return;
+        // BLE tiene limite de tamaño, enviamos en trozos
+        String p1 = "GEOJSON:{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[";
+        pTxCharacteristic->setValue((uint8_t*)p1.c_str(), p1.length());
+        pTxCharacteristic->notify();
+        delay(20);
+
+        String points = "";
+        for(int i=0; i<4; i++) {
+          points += "[" + String(polyLon[i], 7) + "," + String(polyLat[i], 7) + "],";
+        }
+        points += "[" + String(polyLon[0], 7) + "," + String(polyLat[0], 7) + "]";
         
-        button { padding: 12px; margin-top: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px; color: white; }
-        button:active { transform: scale(0.98); }
-        .btn-green { background-color: #27ae60; }
-        .btn-purple { background-color: #8e44ad; }
-        .btn-orange { background-color: #d35400; }
-        .btn-red { background-color: #c0392b; }
-        .btn-gray { background-color: #7f8c8d; }
+        pTxCharacteristic->setValue((uint8_t*)points.c_str(), points.length());
+        pTxCharacteristic->notify();
+        delay(20);
 
-        #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; font-weight: bold;}
-        
-        /* MAPA */
-        #map { flex-grow: 1; height: 100%; width: 100%; touch-action: none; /* CRÍTICO PARA DIBUJO */ }
+        String p3 = "]]}}]}";
+        pTxCharacteristic->setValue((uint8_t*)p3.c_str(), p3.length());
+        pTxCharacteristic->notify();
+    }
+};
 
-        /* OVERLAY CARGA */
-        #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 2000; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        .loader-box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; border: 1px solid #ddd; }
-        .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 15px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+void setup() {
+  Serial.begin(115200);
+  Serial2.begin(GPSBaud, SERIAL_8N1, RXPin, TXPin);
+  pinMode(LED_TRIGGER, OUTPUT);
+  digitalWrite(LED_TRIGGER, LOW);
 
-        /* MÓVIL RESPONSIVE */
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            #sidebar { width: 100%; height: auto; padding: 10px; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; }
-            #sidebar h2 { display: none; } 
-            .label-title { display: none; }
-            .data-panel { display: none; } 
-            #lbl-connection, #lbl-zone-status { width: 48%; font-size: 11px; padding: 8px; margin: 0; }
-            button { width: 32%; font-size: 10px; padding: 8px; margin-top: 5px; }
-            #lbl-instruction { width: 100%; margin: 5px 0; }
-            #map { height: 65vh; }
-        }
-    </style>
-</head>
-<body>
+  // Cargar Memoria
+  preferences.begin("geocerca", true);
+  zonaCargada = preferences.isKey("init");
+  if(zonaCargada){
+     for(int i=0; i<polyPoints; i++){
+       polyLat[i] = preferences.getDouble(("la"+String(i)).c_str(), 0);
+       polyLon[i] = preferences.getDouble(("lo"+String(i)).c_str(), 0);
+     }
+  }
+  preferences.end();
 
-    <div id="sidebar">
-        <h2>CERCA VIRTUAL</h2>
-        
-        <div style="width: 100%; display: flex; gap: 5px; margin-bottom: 5px;">
-            <div id="lbl-connection" class="status-box" style="flex:1;">DESCONECTADO</div>
-            <div id="lbl-zone-status" class="status-box" style="flex:1;">---</div>
-        </div>
-        
-        <div class="label-title">CONEXIÓN:</div>
-        <button id="btn-connect" class="btn-green" onclick="conectarBLE()">📡 CONECTAR BLUETOOTH</button>
+  // Configurar BLE
+  BLEDevice::init("Geocerca_BLE"); // NOMBRE DEL BLUETOOTH
+  BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  pTxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_NOTIFY);
+  pTxCharacteristic->addDescriptor(new BLE2902());
+  BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_RX, BLECharacteristic::PROPERTY_WRITE);
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+  pService->start();
+  pServer->getAdvertising()->start();
+  Serial.println("BLE LISTO");
+}
 
-        <div class="data-panel">
-            <div style="font-size: 10px; color: #ecf0f1; margin-bottom:5px;">POSICIÓN ACTUAL</div>
-            <span id="val-lat" class="coord-text">Lat: 0.000000</span>
-            <span id="val-lon" class="coord-text">Lon: 0.000000</span>
-        </div>
+void loop() {
+  // Reconexión automática de publicidad
+  if (!deviceConnected && oldDeviceConnected) {
+      delay(500); 
+      BLEDevice::startAdvertising(); 
+      oldDeviceConnected = deviceConnected;
+  }
+  if (deviceConnected && !oldDeviceConnected) {
+      oldDeviceConnected = deviceConnected;
+  }
 
-        <div id="lbl-instruction"></div>
+  while (Serial2.available() > 0) {
+    gps.encode(Serial2.read());
+    if (gps.location.isUpdated()) {
+      double lat = gps.location.lat();
+      double lon = gps.location.lng();
+      double hdop = gps.hdop.hdop();
 
-        <div style="margin-top: auto; width: 100%; display: flex; flex-wrap: wrap; gap: 5px;">
-            <button class="btn-purple" style="flex: 100%" onclick="configManual()">⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange" style="flex: 100%" onclick="toggleDrawMode()">✏ DIBUJAR (Arrastrar)</button>
-            <button class="btn-red" style="flex: 100%" onclick="factoryReset()">⚠ BORRAR ZONA</button>
-        </div>
-    </div>
+      if (hdop > HDOP_MAXIMO || hdop == 0.0) continue;
 
-    <div id="map"></div>
+      String st = "NO_CONFIG";
+      bool dentro = false;
 
-    <div id="loading-overlay">
-        <div class="loader-box">
-            <h3 id="load-title" style="margin:0; color:#333;">Cargando...</h3>
-            <div class="spinner"></div>
-            <div id="load-desc" style="color:#666;">Espere...</div>
-        </div>
-    </div>
+      if(zonaCargada) {
+         int i, j = polyPoints - 1;
+         for (i = 0; i < polyPoints; j = i++) {
+           if (((polyLat[i] > lat) != (polyLat[j] > lat)) &&
+              (lon < (polyLon[j] - polyLon[i]) * (lat - polyLat[i]) / (polyLat[j] - polyLat[i]) + polyLon[i])) {
+              dentro = !dentro;
+           }
+         }
+         if(dentro) { digitalWrite(LED_TRIGGER, LOW); st = "INSIDE"; }
+         else { digitalWrite(LED_TRIGGER, HIGH); st = "ALARM"; }
+      }
 
-    <script>
-        // CONFIGURACIÓN BLE (Coincide con tu código ESP32)
-        const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-        const CHAR_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; 
-        const CHAR_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; 
-
-        let device, server, rxChar, txChar;
-        let map, polygonLayer, markersLayer, myMarker;
-        let isConnected = false;
-        let isLoading = false;
-        let isDrawing = false;
-        let startPoint = null;
-        let tempRect = null;
-        let buffer = "";
-
-        window.onload = function() {
-            map = L.map('map', { zoomControl: false }).setView([4.570868, -75.641], 16);
-            L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
-            polygonLayer = L.layerGroup().addTo(map);
-            markersLayer = L.layerGroup().addTo(map);
-
-            // Eventos del mapa (Touch Fix)
-            map.on('mousedown touchstart', onDragStart);
-            map.on('mousemove touchmove', onDragMove);
-            map.on('mouseup touchend', onDragEnd);
-            
-            document.getElementById('map').oncontextmenu = (e) => e.preventDefault();
-        };
-
-        // --- CONEXIÓN BLE (BLUETOOTH) ---
-        async function conectarBLE() {
-            if (isConnected) { location.reload(); return; }
-
-            try {
-                showLoading("📡 Conectando...", "Busca 'Geocerca_BLE'");
-                
-                // Solicitar dispositivo BLE
-                device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'Geocerca' }],
-                    optionalServices: [SERVICE_UUID]
-                });
-
-                server = await device.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                rxChar = await service.getCharacteristic(CHAR_RX_UUID);
-                txChar = await service.getCharacteristic(CHAR_TX_UUID);
-
-                await txChar.startNotifications();
-                txChar.addEventListener('characteristicvaluechanged', handleNotifications);
-
-                isConnected = true;
-                document.getElementById('lbl-connection').innerText = "CONECTADO (BLE)";
-                document.getElementById('lbl-connection').style.backgroundColor = "#27ae60";
-                document.getElementById('btn-connect').innerText = "DESCONECTAR";
-                document.getElementById('btn-connect').className = "btn-red";
-
-                // Pedir estado inicial
-                setTimeout(() => sendCmd("GEOJSON"), 1000);
-
-            } catch (error) {
-                hideLoading();
-                alert("Error BLE: " + error + "\n(Asegúrate de activar Bluetooth y Ubicación)");
-            }
-        }
-
-        function handleNotifications(event) {
-            const value = event.target.value;
-            const decoder = new TextDecoder('utf-8');
-            const chunk = decoder.decode(value);
-            
-            // Reconstruir mensaje si llega partido
-            if (chunk.includes("DATA:") || chunk.includes("GEOJSON:")) {
-                if (buffer.length > 0) processFullMessage(buffer);
-                buffer = chunk; 
-            } else {
-                buffer += chunk;
-            }
-
-            if (buffer.trim().endsWith("}") || buffer.trim().endsWith("]}}]}")) {
-                processFullMessage(buffer);
-                buffer = "";
-            }
-        }
-
-        function processFullMessage(msg) {
-            // Quitar carga si llega lo esperado
-            if (isLoading) {
-                let title = document.getElementById('load-title').innerText;
-                if(title.includes("Conectando")) hideLoading();
-                else if(title.includes("Actualizando") && msg.includes("GEOJSON")) hideLoading();
-            }
-
-            if (msg.includes("DATA:")) {
-                try {
-                    let jsonPart = msg.split("DATA:")[1];
-                    let data = JSON.parse(jsonPart);
-                    updateUI(data);
-                } catch(e){}
-            } 
-            else if (msg.includes("GEOJSON:")) {
-                try {
-                    let jsonPart = msg.split("GEOJSON:")[1];
-                    drawGeoJSON(jsonPart);
-                } catch(e){}
-            }
-        }
-
-        async function sendCmd(cmd) {
-            if (!rxChar) return;
-            const encoder = new TextEncoder();
-            await rxChar.writeValue(encoder.encode(cmd));
-        }
-
-        function updateUI(data) {
-            document.getElementById('val-lat').innerText = data.lat.toFixed(6);
-            document.getElementById('val-lon').innerText = data.lon.toFixed(6);
-            
-            const lbl = document.getElementById('lbl-zone-status');
-            if(data.status === "INSIDE") { lbl.innerText = "DENTRO"; lbl.style.backgroundColor = "#27ae60"; }
-            else if(data.status === "ALARM") { lbl.innerText = "!!! ALARMA !!!"; lbl.style.backgroundColor = "#c0392b"; }
-            else { lbl.innerText = "BUSCANDO..."; lbl.style.backgroundColor = "#f39c12"; }
-
-            if (!myMarker) {
-                myMarker = L.circleMarker([data.lat, data.lon], { radius: 8, color: 'white', fillColor: '#d32f2f', fillOpacity: 1, weight: 2 }).addTo(map).bindPopup("Yo");
-            } else {
-                myMarker.setLatLng([data.lat, data.lon]);
-            }
-        }
-
-        function drawGeoJSON(jsonStr) {
-            hideLoading();
-            try {
-                const data = JSON.parse(jsonStr);
-                const coords = data.features[0].geometry.coordinates[0];
-                const latlngs = coords.map(p => [p[1], p[0]]);
-                
-                polygonLayer.clearLayers();
-                markersLayer.clearLayers();
-                
-                L.polygon(latlngs, { color: 'blue', weight: 4, fillOpacity: 0.1 }).addTo(polygonLayer);
-                
-                latlngs.pop();
-                latlngs.forEach((p, i) => {
-                    L.circleMarker(p, { radius: 6, color: '#2980b9', fillColor: 'white', fillOpacity: 1, weight: 2 }).addTo(markersLayer);
-                });
-                
-                if(latlngs.length > 0) map.fitBounds(L.polygon(latlngs).getBounds());
-            } catch(e){}
-        }
-
-        // --- LÓGICA DIBUJO TÁCTIL ARREGLADA ---
-        function toggleDrawMode() {
-            if (!isConnected) return alert("Conecta el Bluetooth primero");
-            isDrawing = !isDrawing;
-            const btn = document.getElementById('btn-draw');
-            const info = document.getElementById('lbl-instruction');
-
-            if (isDrawing) {
-                btn.innerText = "❌ CANCELAR"; btn.style.backgroundColor = "gray";
-                info.innerText = "ARRASTRA EL DEDO EN EL MAPA";
-                
-                // BLOQUEO TOTAL DEL MAPA PARA QUE EL DEDO SOLO DIBUJE
-                map.dragging.disable();
-                map.touchZoom.disable();
-                map.doubleClickZoom.disable();
-                map.scrollWheelZoom.disable();
-                map.boxZoom.disable();
-                map.keyboard.disable();
-                if (map.tap) map.tap.disable();
-
-            } else {
-                btn.innerText = "✏ DIBUJAR (Arrastrar)"; btn.style.backgroundColor = "#d35400";
-                info.innerText = "";
-                
-                // REACTIVAR MAPA
-                map.dragging.enable();
-                map.touchZoom.enable();
-                map.doubleClickZoom.enable();
-                map.scrollWheelZoom.enable();
-                
-                if(tempRect) { map.removeLayer(tempRect); tempRect = null; }
-            }
-        }
-
-        function onDragStart(e) {
-            if (!isDrawing) return;
-            // Prevenir scroll en movil
-            if(e.originalEvent) e.originalEvent.preventDefault();
-            
-            let latlng = e.latlng || map.mouseEventToLatLng(e.originalEvent);
-            startPoint = latlng;
-            tempRect = L.rectangle([startPoint, startPoint], {color: "red", weight: 2, fill: false}).addTo(map);
-        }
-
-        function onDragMove(e) {
-            if (!isDrawing || !startPoint || !tempRect) return;
-            if(e.originalEvent) e.originalEvent.preventDefault();
-
-            let latlng = e.latlng || map.mouseEventToLatLng(e.originalEvent);
-            tempRect.setBounds([startPoint, latlng]);
-        }
-
-        function onDragEnd(e) {
-            if (!isDrawing || !startPoint) return;
-            
-            const bounds = tempRect.getBounds();
-            const ne = bounds.getNorthEast();
-            const sw = bounds.getSouthWest();
-            
-            // Calcular 4 puntos
-            const p1 = [ne.lat, sw.lng];
-            const p2 = [ne.lat, ne.lng];
-            const p3 = [sw.lat, ne.lng];
-            const p4 = [sw.lat, sw.lng];
-            
-            const str = `${p1[0]},${p1[1]},${p2[0]},${p2[1]},${p3[0]},${p3[1]},${p4[0]},${p4[1]}`;
-            
-            map.removeLayer(tempRect); tempRect = null; startPoint = null;
-            
-            if(confirm("¿Guardar esta zona nueva?")) {
-                sendCmd("CONFIG");
-                setTimeout(() => {
-                    sendCmd(str);
-                    showLoading("📡 Actualizando Zona...", "Enviando por Bluetooth...");
-                    // Esperamos respuesta para quitar carga
-                }, 500);
-            }
-            toggleDrawMode(); // Salir modo dibujo y reactivar mapa
-        }
-
-        function configManual() {
-            if (!isConnected) return alert("Conecta primero");
-            const val = prompt("Ingresa coordenadas:\nEj: 4.57,-75.64...");
-            if (val) {
-                sendCmd("CONFIG");
-                setTimeout(() => {
-                    sendCmd(val);
-                    showLoading("📡 Actualizando...", "Guardando...");
-                }, 500);
-            }
-        }
-
-        function factoryReset() {
-            if (!isConnected) return alert("Conecta primero");
-            if(confirm("¿Borrar todo?")) {
-                sendCmd("RESET");
-                polygonLayer.clearLayers();
-                markersLayer.clearLayers();
-            }
-        }
-
-        function showLoading(t, d) { isLoading = true; document.getElementById('load-title').innerText = t; document.getElementById('load-desc').innerText = d; document.getElementById('loading-overlay').style.display = 'flex'; }
-        function hideLoading() { isLoading = false; document.getElementById('loading-overlay').style.display = 'none'; }
-    </script>
-</body>
-</html>
+      // Enviar por BLE
+      if (deviceConnected) {
+         static unsigned long t = 0;
+         if(millis() - t > 1000) {
+            String json = "DATA:{\"lat\":" + String(lat, 7) + ",\"lon\":" + String(lon, 7) + ",\"status\":\"" + st + "\"}";
+            pTxCharacteristic->setValue((uint8_t*)json.c_str(), json.length());
+            pTxCharacteristic->notify();
+            t = millis();
+         }
+      }
+    }
+  }
+}
