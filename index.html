@@ -3,164 +3,166 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - Touch Precision</title>
+    <title>Monitor Geocerca - Móvil</title>
     
-    <!-- Librería de Mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* Estilos Generales */
-        body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #222; color: white; overflow: hidden; }
+        body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: 'Segoe UI', sans-serif; background: #2c3e50; overflow: hidden; }
         
-        /* Barra Superior */
-        #top-bar {
-            padding: 10px; background: #333; display: flex; flex-wrap: wrap; gap: 10px;
-            align-items: center; justify-content: space-between; z-index: 2000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        #sidebar {
+            background-color: #2c3e50; color: white; padding: 15px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5); z-index: 1000;
+            display: flex; flex-direction: column; gap: 5px;
+            max-height: 45vh; overflow-y: auto; /* Panel scrolleable en móviles pequeños */
         }
 
-        /* Indicadores de Estado */
-        .badge { padding: 8px 12px; border-radius: 5px; font-weight: bold; font-size: 12px; text-align: center; flex-grow: 1; }
-        .bg-red { background: #e74c3c; }
-        .bg-green { background: #2ecc71; }
-        .bg-gray { background: #7f8c8d; }
-        .bg-blue { background: #3498db; }
-
-        /* Coordenadas */
-        #coords { font-family: monospace; font-size: 12px; color: #f1c40f; width: 100%; text-align: center; margin-top: 5px; }
-
-        /* Botones */
-        .btn {
-            padding: 12px; border: none; border-radius: 5px; color: white; font-weight: bold; 
-            cursor: pointer; font-size: 14px; flex-grow: 1;
+        h2 { text-align: center; margin: 0 0 10px 0; font-size: 18px; }
+        
+        .status-box { 
+            padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 12px; 
         }
-        .btn-bt { background: #2980b9; }
-        .btn-draw { background: #e67e22; }
-        .btn-cancel { background: #c0392b; display: none; } /* Oculto por defecto */
+        #lbl-connection { background-color: #c0392b; } 
+        #lbl-zone-status { background-color: #95a5a6; margin-top: 5px; }
 
-        /* Contenedor del Mapa */
-        #map-container { flex-grow: 1; position: relative; }
-        #map { width: 100%; height: 100%; }
-
-        /* --- EL VIDRIO (Touch Pad) --- */
-        #touch-pad {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 3000; /* Encima del mapa */
-            background: rgba(0, 0, 0, 0.0); /* Transparente */
-            display: none; /* Oculto al inicio */
-            
-            /* ESTO ES LO QUE HACE LA MAGIA EN EL CELULAR: */
-            touch-action: none; 
-            cursor: crosshair;
+        .data-panel { 
+            background-color: #34495e; padding: 8px; border-radius: 4px; margin-top: 5px; text-align: center; 
         }
+        .coord-text { font-family: monospace; font-size: 14px; color: #3498db; font-weight: bold; display: block; }
+        .label-small { font-size: 10px; color: #bdc3c7; }
 
-        /* Mensaje Flotante */
-        #msg-overlay {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 10px;
-            display: none; z-index: 4000; text-align: center;
+        button { 
+            padding: 12px; margin-top: 5px; border: none; border-radius: 4px; 
+            font-weight: bold; cursor: pointer; width: 100%; font-size: 13px; color: white;
         }
+        .btn-green { background-color: #27ae60; }
+        .btn-purple { background-color: #8e44ad; }
+        .btn-orange { background-color: #d35400; }
+        .btn-red { background-color: #c0392b; }
+        .btn-gray { background-color: #7f8c8d; }
+
+        #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 18px; margin-top: 5px; font-size: 12px; }
+        
+        #map { flex-grow: 1; height: 100%; width: 100%; touch-action: none; }
+
+        #loading-overlay { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255, 255, 255, 0.9); z-index: 2000; 
+            display: none; flex-direction: column; justify-content: center; align-items: center; 
+        }
+        .loader-box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
+        .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 15px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <!-- Panel de Control -->
-    <div id="top-bar">
-        <div id="status-bt" class="badge bg-red">DESCONECTADO</div>
-        <div id="status-zone" class="badge bg-gray">---</div>
-        <div id="coords">Lat: 0.00000 | Lon: 0.00000</div>
+    <div id="sidebar">
+        <h2>CERCA VIRTUAL</h2>
         
-        <div style="width: 100%; display: flex; gap: 5px;">
-            <button class="btn btn-bt" onclick="connectBLE()">📡 CONECTAR</button>
-            <button id="btn-draw" class="btn btn-draw" onclick="startDrawing()">✏ DIBUJAR</button>
-            <button id="btn-cancel" class="btn btn-cancel" onclick="stopDrawing()">❌ CANCELAR</button>
+        <div id="lbl-connection" class="status-box">DESCONECTADO</div>
+        
+        <button id="btn-connect" class="btn-green" onclick="conectarBLE()">📡 CONECTAR BLUETOOTH</button>
+
+        <div id="lbl-zone-status" class="status-box">---</div>
+
+        <div class="data-panel">
+            <div class="label-small">POSICIÓN ACTUAL</div>
+            <span id="val-lat" class="coord-text">Lat: 0.000000</span>
+            <span id="val-lon" class="coord-text">Lon: 0.000000</span>
+        </div>
+
+        <div id="lbl-instruction"></div>
+
+        <!-- Botones de Acción -->
+        <button class="btn-purple" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
+        <button id="btn-draw" class="btn-orange" onclick="toggleDrawMode()">✏ DIBUJAR (Arrastrar)</button>
+        <button class="btn-red" onclick="factoryReset()">⚠ BORRAR COORDENADAS</button>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="loading-overlay">
+        <div class="loader-box">
+            <h3 id="load-title" style="margin:0; color:#333;">Cargando...</h3>
+            <div class="spinner"></div>
+            <div id="load-desc" style="color:#666;">Espere respuesta...</div>
         </div>
     </div>
 
-    <!-- Área del Mapa -->
-    <div id="map-container">
-        <div id="map"></div>
-        <!-- VIDRIO TRANSPARENTE -->
-        <div id="touch-pad"></div>
-    </div>
-
-    <div id="msg-overlay">Cargando...</div>
-
     <script>
-        // --- UUIDs DEL ESP32 ---
+        // UUIDs del Código ESP32
         const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
         const RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
         const TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
         let bluetoothDevice, rxChar, txChar;
-        let map, myMarker, fenceLayer, tempLayer;
+        let map, fenceLayer, markersLayer, myMarker;
         let isConnected = false;
+        let isLoading = false;
         let buffer = "";
         
-        // Variables de dibujo
+        // Variables Dibujo
+        let isDrawing = false;
         let startLatLng = null;
         let tempRect = null;
 
-        // --- INICIALIZAR ---
         window.onload = () => {
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: 'OSM'
-            }).addTo(map);
-            
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: 'OSM'}).addTo(map);
             fenceLayer = L.layerGroup().addTo(map);
-            tempLayer = L.layerGroup().addTo(map);
-
-            // Configurar eventos del "Vidrio"
-            const pad = document.getElementById('touch-pad');
+            markersLayer = L.layerGroup().addTo(map);
             
-            // Eventos Táctiles (Celular)
-            pad.addEventListener('touchstart', handleInputStart, {passive: false});
-            pad.addEventListener('touchmove', handleInputMove, {passive: false});
-            pad.addEventListener('touchend', handleInputEnd, {passive: false});
-
-            // Eventos Mouse (PC)
-            pad.addEventListener('mousedown', handleInputStart);
-            pad.addEventListener('mousemove', handleInputMove);
-            pad.addEventListener('mouseup', handleInputEnd);
+            // Eventos de dibujo (Mouse y Táctil)
+            const mapDiv = document.getElementById('map');
+            mapDiv.addEventListener('mousedown', handleStart);
+            mapDiv.addEventListener('touchstart', handleStart, {passive: false});
+            
+            mapDiv.addEventListener('mousemove', handleMove);
+            mapDiv.addEventListener('touchmove', handleMove, {passive: false});
+            
+            mapDiv.addEventListener('mouseup', handleEnd);
+            mapDiv.addEventListener('touchend', handleEnd);
+            
+            mapDiv.oncontextmenu = (e) => e.preventDefault();
         };
 
-        // --- LÓGICA BLUETOOTH ---
-        async function connectBLE() {
+        async function conectarBLE() {
+            if (isConnected) { location.reload(); return; }
             try {
-                showMsg("Buscando ESP32...");
+                showLoading("📡 Conectando...", "Busca 'Geocerca_PRO'");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: "Geocerca" }],
                     optionalServices: [SERVICE_UUID]
                 });
-
                 const server = await bluetoothDevice.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                rxChar = await service.getCharacteristic(RX_UUID); 
-                txChar = await service.getCharacteristic(TX_UUID); 
-
+                rxChar = await service.getCharacteristic(RX_UUID);
+                txChar = await service.getCharacteristic(TX_UUID);
+                
                 await txChar.startNotifications();
                 txChar.addEventListener('characteristicvaluechanged', handleNotifications);
-
                 bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
                 isConnected = true;
-                document.getElementById('status-bt').innerText = "CONECTADO";
-                document.getElementById('status-bt').className = "badge bg-green";
-                hideMsg();
+                document.getElementById('lbl-connection').innerText = "CONECTADO";
+                document.getElementById('lbl-connection').style.backgroundColor = "#27ae60";
+                document.getElementById('btn-connect').innerText = "DESCONECTAR";
+                document.getElementById('btn-connect').className = "btn-red";
+                
                 setTimeout(() => sendCmd("GEOJSON"), 500);
-
             } catch (error) {
-                hideMsg();
-                alert("Error BLE: " + error);
+                hideLoading();
+                alert("Error: " + error);
             }
         }
 
         function onDisconnected() {
             isConnected = false;
-            document.getElementById('status-bt').innerText = "DESCONECTADO";
-            document.getElementById('status-bt').className = "badge bg-red";
+            document.getElementById('lbl-connection').innerText = "DESCONECTADO";
+            document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
             alert("Bluetooth desconectado");
         }
 
@@ -172,9 +174,7 @@
             if (chunk.includes("DATA:") || chunk.includes("GEOJSON:")) {
                 if(buffer.length > 0) processMsg(buffer);
                 buffer = chunk;
-            } else {
-                buffer += chunk;
-            }
+            } else { buffer += chunk; }
 
             if (buffer.trim().endsWith("}") || buffer.trim().endsWith("]}}]}")) {
                 processMsg(buffer);
@@ -183,16 +183,17 @@
         }
 
         function processMsg(msg) {
-            if(msg.includes("GEOJSON")) hideMsg();
+            if(isLoading) {
+                if(document.getElementById('load-title').innerText.includes("Conectando")) hideLoading();
+                else if(msg.includes("GEOJSON")) hideLoading();
+            }
 
             if (msg.includes("DATA:")) {
                 try {
-                    const jsonStr = msg.split("DATA:")[1];
-                    const data = JSON.parse(jsonStr);
+                    const data = JSON.parse(msg.split("DATA:")[1]);
                     updateUI(data);
                 } catch(e){}
-            }
-            else if (msg.includes("GEOJSON:")) {
+            } else if (msg.includes("GEOJSON:")) {
                 try {
                     const jsonStr = msg.split("GEOJSON:")[1];
                     drawFence(jsonStr);
@@ -207,131 +208,144 @@
         }
 
         function updateUI(data) {
-            document.getElementById('coords').innerText = `Lat: ${data.lat.toFixed(6)} | Lon: ${data.lon.toFixed(6)}`;
-            const zoneBadge = document.getElementById('status-zone');
-            if(data.status === "INSIDE") {
-                zoneBadge.innerText = "DENTRO (SEGURO)"; zoneBadge.className = "badge bg-green";
-            } else if(data.status === "ALARM") {
-                zoneBadge.innerText = "!!! ALARMA !!!"; zoneBadge.className = "badge bg-red";
-            } else {
-                zoneBadge.innerText = "BUSCANDO..."; zoneBadge.className = "badge bg-blue";
-            }
+            document.getElementById('val-lat').innerText = `Lat: ${data.lat.toFixed(6)}`;
+            document.getElementById('val-lon').innerText = `Lon: ${data.lon.toFixed(6)}`;
+            
+            const lbl = document.getElementById('lbl-zone-status');
+            if(data.status === "INSIDE") { lbl.innerText = "DENTRO"; lbl.style.backgroundColor = "#27ae60"; }
+            else if(data.status === "ALARM") { lbl.innerText = "!!! ALARMA !!!"; lbl.style.backgroundColor = "#c0392b"; }
+            else { lbl.innerText = "BUSCANDO..."; lbl.style.backgroundColor = "#f39c12"; }
 
-            if(!myMarker) {
-                myMarker = L.marker([data.lat, data.lon]).addTo(map);
-            } else {
-                myMarker.setLatLng([data.lat, data.lon]);
-            }
+            if(!myMarker) myMarker = L.circleMarker([data.lat, data.lon], {radius: 8, color: 'white', fillColor: '#d32f2f', fillOpacity: 1, weight: 2}).addTo(map).bindPopup("Yo");
+            else myMarker.setLatLng([data.lat, data.lon]);
         }
 
         function drawFence(jsonStr) {
             const data = JSON.parse(jsonStr);
             const coords = data.features[0].geometry.coordinates[0];
             const latlngs = coords.map(p => [p[1], p[0]]);
+            
             fenceLayer.clearLayers();
-            L.polygon(latlngs, {color: 'blue', fillOpacity: 0.1}).addTo(fenceLayer);
+            markersLayer.clearLayers();
+            
+            L.polygon(latlngs, {color: 'blue', weight: 4, fillOpacity: 0.1}).addTo(fenceLayer);
             latlngs.pop();
-            latlngs.forEach(p => {
-                L.circleMarker(p, {radius: 5, color: 'blue'}).addTo(fenceLayer);
-            });
+            latlngs.forEach(p => L.circleMarker(p, {radius: 6, color: '#2980b9', fillColor: 'white', fillOpacity: 1, weight: 2}).addTo(markersLayer));
+            
             if(latlngs.length > 0) map.fitBounds(L.polygon(latlngs).getBounds());
         }
 
-        // --- LÓGICA DE DIBUJO CON PRECISIÓN GEOMÉTRICA ---
+        // --- LÓGICA DIBUJO (Touch & Mouse Universal) ---
         
-        function startDrawing() {
+        function toggleDrawMode() {
             if(!isConnected) return alert("Conecta el Bluetooth primero");
-            document.getElementById('touch-pad').style.display = 'block';
-            document.getElementById('btn-draw').style.display = 'none';
-            document.getElementById('btn-cancel').style.display = 'inline-block';
-            alert("DIBUJO ACTIVADO: Arrastra el dedo sobre el mapa.");
-        }
+            isDrawing = !isDrawing;
+            const btn = document.getElementById('btn-draw');
+            const info = document.getElementById('lbl-instruction');
 
-        function stopDrawing() {
-            document.getElementById('touch-pad').style.display = 'none';
-            document.getElementById('btn-draw').style.display = 'inline-block';
-            document.getElementById('btn-cancel').style.display = 'none';
-            tempLayer.clearLayers();
-            startLatLng = null;
-            tempRect = null;
-        }
-
-        // Esta función convierte el click/touch en el Vidrio a coordenadas reales del Mapa
-        function getMapCoords(e) {
-            let clientX, clientY;
-            
-            if (e.type.startsWith('touch')) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
+            if(isDrawing) {
+                btn.innerText = "❌ CANCELAR"; btn.className = "btn-gray";
+                info.innerText = "ARRASTRA UN DEDO EN EL MAPA";
+                map.dragging.disable();
+                map.touchZoom.disable(); 
+                map.scrollWheelZoom.disable();
             } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
+                btn.innerText = "✏ DIBUJAR (Arrastrar)"; btn.className = "btn-orange";
+                info.innerText = "";
+                map.dragging.enable();
+                map.touchZoom.enable();
+                map.scrollWheelZoom.enable();
+                if(tempRect) { map.removeLayer(tempRect); tempRect = null; }
+            }
+        }
+
+        function getCoords(e) {
+            if(e.touches) {
+                const rect = document.getElementById('map').getBoundingClientRect();
+                const t = e.touches[0];
+                return map.containerPointToLatLng([t.clientX - rect.left, t.clientY - rect.top]);
+            }
+            return e.latlng; // Mouse event de Leaflet
+        }
+
+        function handleStart(e) {
+            if (!isDrawing) return;
+            if(e.type === 'touchstart') e.preventDefault(); // Bloquear scroll
+            
+            // Para eventos de Leaflet usamos e.latlng, para touch nativo calculamos
+            if(e.latlng) startLatLng = e.latlng;
+            else {
+                // Calculo manual para touch nativo sobre el mapa
+                const t = e.touches[0];
+                startLatLng = map.mouseEventToLatLng({clientX: t.clientX, clientY: t.clientY});
             }
 
-            // OBTENER LA POSICIÓN RELATIVA AL CONTENEDOR DEL MAPA
-            // Esto corrige el desfase causado por la barra superior
-            const mapContainer = document.getElementById('map');
-            const rect = mapContainer.getBoundingClientRect();
-            
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
-
-            // Leaflet convierte el punto relativo (x,y) a Lat/Lon
-            return map.containerPointToLatLng([x, y]);
+            if(tempRect) map.removeLayer(tempRect);
+            tempRect = L.rectangle([startLatLng, startLatLng], {color: "red", weight: 2}).addTo(map);
         }
 
-        function handleInputStart(e) {
-            e.preventDefault(); // Evita scroll en celular
-            startLatLng = getMapCoords(e);
-            
-            // Dibujar punto inicial
-            tempLayer.clearLayers();
-            tempRect = L.rectangle([startLatLng, startLatLng], {color: "red", weight: 2}).addTo(tempLayer);
-        }
+        function handleMove(e) {
+            if (!isDrawing || !startLatLng || !tempRect) return;
+            if(e.type === 'touchmove') e.preventDefault();
 
-        function handleInputMove(e) {
-            e.preventDefault();
-            if (!startLatLng || !tempRect) return;
-            
-            const currentLatLng = getMapCoords(e);
+            let currentLatLng;
+            if(e.latlng) currentLatLng = e.latlng;
+            else {
+                const t = e.touches[0];
+                currentLatLng = map.mouseEventToLatLng({clientX: t.clientX, clientY: t.clientY});
+            }
             tempRect.setBounds([startLatLng, currentLatLng]);
         }
 
-        function handleInputEnd(e) {
-            e.preventDefault();
-            if (!startLatLng || !tempRect) return;
+        function handleEnd(e) {
+            if (!isDrawing || !startLatLng || !tempRect) return;
+            if(e.type === 'touchend') e.preventDefault();
 
             const bounds = tempRect.getBounds();
             const ne = bounds.getNorthEast();
             const sw = bounds.getSouthWest();
-            
-            // 4 Puntos
-            const p1 = [ne.lat, sw.lng];
-            const p2 = [ne.lat, ne.lng];
-            const p3 = [sw.lat, ne.lng];
-            const p4 = [sw.lat, sw.lng];
-            
+            const p1 = [ne.lat, sw.lng]; const p2 = [ne.lat, ne.lng]; 
+            const p3 = [sw.lat, ne.lng]; const p4 = [sw.lat, sw.lng];
             const str = `${p1[0]},${p1[1]},${p2[0]},${p2[1]},${p3[0]},${p3[1]},${p4[0]},${p4[1]}`;
+            
+            map.removeLayer(tempRect); tempRect = null; startLatLng = null;
             
             if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
-                    showMsg("Guardando en el ESP32...");
+                    showLoading("📡 Actualizando...", "Enviando por Bluetooth");
+                    setTimeout(() => sendCmd("GEOJSON"), 3000); // Esperar mapa
+                }, 500);
+            }
+            toggleDrawMode();
+        }
+
+        function configManual() {
+            if (!isConnected) return alert("Conecta primero");
+            const val = prompt("Ingresa coordenadas:\nEj: 4.57,-75.64...");
+            if (val) {
+                sendCmd("CONFIG");
+                setTimeout(() => {
+                    sendCmd(val);
+                    showLoading("📡 Actualizando...", "Guardando...");
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
-            stopDrawing();
         }
 
-        function showMsg(txt) {
-            const el = document.getElementById('msg-overlay');
-            el.innerText = txt;
-            el.style.display = 'block';
+        function factoryReset() {
+            if (!isConnected) return alert("Conecta primero");
+            if(confirm("¿Borrar todo?")) {
+                sendCmd("RESET");
+                fenceLayer.clearLayers();
+                markersLayer.clearLayers();
+            }
         }
-        function hideMsg() {
-            document.getElementById('msg-overlay').style.display = 'none';
-        }
+
+        function showLoading(t, d) { isLoading = true; document.getElementById('load-title').innerText = t; document.getElementById('load-desc').innerText = d; document.getElementById('loading-overlay').style.display = 'flex'; }
+        function hideMsg() { isLoading = false; document.getElementById('loading-overlay').style.display = 'none'; }
+        function hideLoading() { hideMsg(); }
 
     </script>
 </body>
