@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monitor Geocerca - Híbrido PC/Movil</title>
+    <title>Monitor Geocerca - Universal</title>
     
     <!-- Mapa Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- DRIVER ANDROID (Solo se usará si se detecta móvil) -->
+    <!-- DRIVER CH340 PARA ANDROID (Solo se activa si es móvil) -->
     <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15/dist/serial.min.js"></script>
 
     <style>
@@ -22,16 +22,23 @@
         }
         h2 { text-align: center; margin: 0 0 20px 0; font-size: 20px; }
         .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; }
+        
         .status-box { padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 13px; }
         #lbl-connection { background-color: #c0392b; margin-bottom: 10px; } 
         #lbl-zone-status { background-color: #95a5a6; color: white; }
+
         .data-panel { background-color: #34495e; padding: 10px; border-radius: 4px; margin-top: 5px; border: 1px solid #465c71; text-align: center; }
         .coord-text { font-family: monospace; font-size: 15px; color: #3498db; font-weight: bold; display: block; }
+
         button { padding: 12px; margin-top: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px; }
+        button:active { transform: scale(0.98); }
+
         .btn-green { background-color: #27ae60; color: white; }
         .btn-purple { background-color: #8e44ad; color: white; }
         .btn-orange { background-color: #d35400; color: white; }
         .btn-red { background-color: #c0392b; color: white; }
+        .btn-gray { background-color: #7f8c8d; color: white; }
+
         #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; }
         #map { flex-grow: 1; height: 100%; cursor: crosshair; }
         
@@ -70,9 +77,9 @@
         </div>
         <div id="lbl-instruction" style="width: 100%;"></div>
         <div style="width: 100%; margin-top: auto;">
-            <button class="btn-purple full-width-mobile" onclick="configManual()">⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange full-width-mobile" onclick="toggleDrawMode()">✏ DIBUJAR (Arrastrar)</button>
-            <button class="btn-red full-width-mobile" onclick="factoryReset()">⚠ RESET</button>
+            <button class="btn-purple full-width-mobile" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
+            <button id="btn-draw" class="btn-orange full-width-mobile" onclick="toggleDrawMode()">✏ DIBUJAR CERCA (Arrastrar)</button>
+            <button class="btn-red full-width-mobile" onclick="factoryReset()">⚠ BORRAR COORDENADAS</button>
         </div>
     </div>
 
@@ -85,18 +92,20 @@
     </div>
 
     <script>
-        // --- DETECCIÓN INTELIGENTE DE DISPOSITIVO ---
+        // --- DETECCIÓN AUTOMÁTICA DE DISPOSITIVO ---
         let serialAPI;
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+        // LÓGICA CRÍTICA:
         if (isMobile && typeof serial !== 'undefined') {
-            // Si es celular, usamos el Polyfill (Driver especial)
+            // SI ES MÓVIL: Usamos el Polyfill (WebUSB) para que funcione el cable OTG con chips chinos
             serialAPI = serial;
-            console.log("Modo Android: Driver Polyfill Activado");
+            console.log("Modo Android detectado: Usando Polyfill");
         } else {
-            // Si es PC, usamos el nativo (Chrome/Edge Standard)
+            // SI ES PC: Usamos el serial Nativo del navegador (Chrome/Edge en Windows/Mac)
+            // Esto arregla el problema de que no conectaba en tu PC
             serialAPI = navigator.serial;
-            console.log("Modo PC: Driver Nativo Activado");
+            console.log("Modo PC detectado: Usando Nativo");
         }
 
         let port, reader, writer;
@@ -111,7 +120,9 @@
         window.onload = function() {
             map = L.map('map', { zoomControl: false }).setView([4.570868, -75.641], 16);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
             polygonLayer = L.layerGroup().addTo(map);
             markersLayer = L.layerGroup().addTo(map);
             map.on('mousedown touchstart', onDragStart);
@@ -125,22 +136,17 @@
             if (isConnected) { location.reload(); return; }
 
             if (!serialAPI) {
-                alert("Tu navegador no es compatible. Usa Chrome.");
+                alert("Tu navegador no soporta Conexión Serial. Usa Chrome o Edge.");
                 return;
             }
 
             try {
                 showLoading("🔌 Conectando...", "Seleccione el dispositivo");
 
-                // Configurar Filtros según el dispositivo
-                let requestOptions = {};
-                if (isMobile) {
-                    // En Android pedimos TODO para que salga el CH340
-                    requestOptions = { filters: [] };
-                }
+                // Filtros vacíos para ver TODOS los dispositivos
+                let options = isMobile ? { filters: [] } : {};
                 
-                // Pedir puerto
-                port = await serialAPI.requestPort(requestOptions);
+                port = await serialAPI.requestPort(options);
                 await port.open({ baudRate: 115200 });
 
                 const textDecoder = new TextDecoderStream();
@@ -164,9 +170,9 @@
 
             } catch (err) {
                 hideLoading();
-                console.error(err);
+                // Ignorar error si el usuario cancela la ventana
                 if (!err.message.includes("No port selected")) {
-                    alert("Error: " + err.message + "\n\nSi estás en Android, activa OTG.");
+                    alert("Error: " + err.message);
                 }
             }
         }
@@ -178,9 +184,7 @@
                     if (done) break;
                     if (value) {
                         let lines = value.split('\n');
-                        for (let line of lines) {
-                            if (line.trim() !== "") processLine(line.trim());
-                        }
+                        for (let line of lines) if (line.trim() !== "") processLine(line.trim());
                     }
                 } catch (e) { break; }
             }
@@ -191,9 +195,9 @@
         }
 
         function processLine(line) {
-            // Handshake
+            // Lógica Handshake
             if (isLoading && (line.includes("DATA:") || line.includes("GEOJSON:") || line.includes("SYSTEM:"))) {
-                const title = document.getElementById('load-title').innerText;
+                let title = document.getElementById('load-title').innerText;
                 if(title.includes("Conectando")) hideLoading();
                 else if(title.includes("Actualizando") && (line.includes("GEOJSON:") || line.includes("JSON_START:"))) hideLoading();
             }
@@ -203,8 +207,7 @@
                     let data = JSON.parse(line.replace("DATA:", ""));
                     updateUI(data);
                 } catch(e){}
-            } 
-            else if (line.startsWith("GEOJSON:") || line.startsWith("JSON_START:")) {
+            } else if (line.startsWith("GEOJSON:") || line.startsWith("JSON_START:")) {
                 try {
                     let jsonStr = line.replace("GEOJSON:", "").replace("JSON_START:", "");
                     drawGeoJSON(jsonStr);
@@ -264,7 +267,7 @@
                 info.innerText = "ARRASTRA EL DEDO EN EL MAPA";
                 map.dragging.disable();
             } else {
-                btn.innerText = "✏ DIBUJAR (Arrastrar)"; btn.style.backgroundColor = "#d35400";
+                btn.innerText = "✏ DIBUJAR CERCA (Arrastrar)"; btn.style.backgroundColor = "#d35400";
                 info.innerText = "";
                 map.dragging.enable();
                 if(tempRect) { map.removeLayer(tempRect); tempRect = null; }
@@ -289,8 +292,10 @@
             if (!isDrawing || !startPoint) return;
             
             const bounds = tempRect.getBounds();
-            const p1 = [bounds.getNorthEast().lat, bounds.getSouthWest().lng];
-            const p2 = [bounds.getNorthEast().lat, bounds.getNorthEast().lng];
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            const p1 = [ne.lat, sw.lng];
+            const p2 = [ne.lat, ne.lng];
             const p3 = [bounds.getSouthWest().lat, bounds.getNorthEast().lng];
             const p4 = [bounds.getSouthWest().lat, bounds.getSouthWest().lng];
             
@@ -333,8 +338,6 @@
 
         function showLoading(t, d) { isLoading = true; document.getElementById('load-title').innerText = t; document.getElementById('load-desc').innerText = d; document.getElementById('loading-overlay').style.display = 'flex'; }
         function hideLoading() { isLoading = false; document.getElementById('loading-overlay').style.display = 'none'; }
-        function updateUIConn(st) { if(st) { document.getElementById('lbl-connection').innerText="CONECTADO"; document.getElementById('lbl-connection').style.backgroundColor="#27ae60"; document.getElementById('btn-connect').innerText="DESCONECTAR"; document.getElementById('btn-connect').classList.replace("btn-green","btn-red"); } }
-
     </script>
 </body>
 </html>
