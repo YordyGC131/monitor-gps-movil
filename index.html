@@ -3,76 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - Replica Python</title>
+    <title>Geocerca BLE - Final Mobile</title>
     
-    <!-- Leaflet -->
+    <!-- Librería de Mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* --- LAYOUT --- */
-        body { margin: 0; display: flex; flex-direction: row; height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; background: #2c3e50; overflow: hidden; }
+        /* --- ESTILOS GENERALES --- */
+        body { 
+            margin: 0; display: flex; 
+            flex-direction: row; /* PC: Lado a lado */
+            height: 100vh; 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: #2c3e50; 
+            overflow: hidden; 
+        }
         
-        /* --- SIDEBAR IZQUIERDO --- */
+        /* --- SIDEBAR (PC) --- */
         #sidebar {
             width: 300px; background-color: #2c3e50; color: white;
-            display: flex; flex-direction: column; padding: 15px; box-sizing: border-box;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.5); z-index: 2000; flex-shrink: 0;
-            overflow-y: auto;
-            gap: 8px; /* Espaciado entre elementos */
+            display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 2000; flex-shrink: 0;
+            overflow-y: auto; border-right: 1px solid #444;
         }
 
-        /* 1. TÍTULO */
-        h2 { text-align: center; margin: 5px 0 15px 0; font-size: 20px; letter-spacing: 1px; color: white; }
+        h2 { text-align: center; margin: 0 0 15px 0; font-size: 18px; color: #ecf0f1; letter-spacing: 1px; border-bottom: 1px solid #444; padding-bottom: 10px; }
         
-        /* 2. BARRA DE CONEXIÓN (ROJA/VERDE) */
-        #lbl-connection { 
-            background-color: #c0392b; color: white; padding: 10px; 
-            border-radius: 4px; text-align: center; font-weight: bold; font-size: 14px; 
-            margin-bottom: 5px;
-        }
-
-        /* ETIQUETAS PEQUEÑAS */
-        .label-small { font-size: 11px; color: #bdc3c7; margin-left: 2px; margin-bottom: 2px;}
-
-        /* 3. COMBO SIMULADO (Visualmente igual a Python) */
-        select {
-            width: 100%; padding: 8px; background: white; border: none; border-radius: 4px;
-            margin-bottom: 5px; font-family: sans-serif;
-        }
-
-        /* 4. BOTONES DE CONEXIÓN */
-        .btn-green { background-color: #27ae60; color: white; }
-        .btn-gray { background-color: #7f8c8d; color: white; }
+        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; text-transform: uppercase; }
         
-        /* 5. BARRA DE ESTADO ZONA (GRIS/VERDE/ROJA) */
-        #lbl-zone-status { 
-            background-color: #95a5a6; color: white; padding: 12px; 
-            border-radius: 4px; text-align: center; font-weight: bold; font-size: 14px; 
+        /* Estados */
+        .status-container { display: flex; gap: 5px; width: 100%; }
+        .status-box { padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 12px; flex: 1; }
+        #lbl-connection { background-color: #c0392b; color: white; transition: 0.3s; } 
+        #lbl-zone-status { background-color: #95a5a6; color: white; transition: 0.3s; }
+
+        /* Coordenadas */
+        .data-panel { background-color: #34495e; padding: 8px; border-radius: 4px; margin-top: 5px; text-align: center; border: 1px solid #4a6278; }
+        .coord-text { font-family: 'Courier New', monospace; font-size: 13px; color: #3498db; font-weight: bold; display: block; }
+
+        /* Instrucciones */
+        #lbl-instruction {
+            color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; 
+            font-size: 12px; font-weight: bold;
         }
 
-        /* 6. PANEL DE COORDENADAS */
-        .data-panel {
-            background-color: #34495e; padding: 10px; border-radius: 4px;
-            border: 1px solid #465c71; text-align: center; margin-top: 5px;
-        }
-        .panel-title { font-size: 11px; color: #ecf0f1; font-weight: bold; margin-bottom: 5px; text-transform: uppercase;}
-        .coord-text { font-family: 'Courier New', monospace; font-size: 15px; color: #3498db; font-weight: bold; display: block; margin: 2px 0;}
-
-        /* 7. BOTONES DE ACCIÓN */
+        /* Botones */
+        .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+        
         button {
-            padding: 12px; border: none; border-radius: 4px; font-weight: bold; 
-            cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px; color: white;
-            margin-bottom: 5px;
+            padding: 12px; border: none; border-radius: 4px; color: white; font-weight: bold; 
+            cursor: pointer; font-size: 13px; width: 100%; transition: 0.2s;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         button:active { transform: scale(0.98); }
-        
+
+        .btn-green { background-color: #27ae60; }
         .btn-purple { background-color: #8e44ad; }
         .btn-orange { background-color: #d35400; }
         .btn-red { background-color: #c0392b; }
-
-        #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; font-size: 12px; height: 15px; margin-bottom: 5px;}
+        .btn-gray { background-color: #7f8c8d; }
 
         /* --- MAPA --- */
         #map-container { flex-grow: 1; position: relative; height: 100%; }
@@ -83,89 +73,96 @@
             touch-action: none; cursor: crosshair;
         }
 
-        /* OVERLAY */
+        /* --- OVERLAY --- */
         #msg-overlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0,0,0,0.85); color: white; padding: 20px 30px; border-radius: 10px;
             display: none; z-index: 4000; text-align: center; font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }
 
-        /* RESPONSIVE MÓVIL */
+        /* =========================================
+           DISEÑO MÓVIL OPTIMIZADO
+           ========================================= */
         @media (max-width: 768px) {
-            body { flex-direction: column-reverse; }
-            #sidebar { width: 100%; height: auto; max-height: 50vh; flex-direction: column; padding: 10px; gap: 5px;}
-            h2 { display: none; }
+            body { flex-direction: column-reverse; } /* Mapa Arriba, Panel Abajo */
+
+            /* Panel inferior compacto */
+            #sidebar {
+                width: 100%; 
+                height: auto; /* Se ajusta al contenido */
+                padding: 8px;
+                border-top: 3px solid #e67e22;
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.5);
+                overflow: visible;
+            }
+
+            /* Mapa ocupa el espacio restante */
+            #map-container { flex-grow: 1; }
+
+            /* Elementos Ocultos en Móvil */
+            h2, .label-title { display: none; }
+
+            /* Botón Conectar Grande */
+            #btn-connect { margin-top: 0; padding: 10px; font-size: 14px; }
+
+            /* Estados más compactos */
+            .status-container { margin-top: 5px; gap: 5px; }
+            .status-box { padding: 5px; font-size: 11px; margin: 0; }
+
+            /* Coordenadas en una línea */
+            .data-panel { padding: 4px; display: flex; justify-content: space-around; margin-top: 5px; }
+            .coord-text { font-size: 11px; }
+
+            /* GRD DE BOTONES (Clave para verlos todos) */
+            .action-buttons { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; /* Dos columnas */
+                gap: 6px; 
+                margin-top: 5px;
+            }
             
-            /* Reorganizar para móvil compacto */
-            .label-small { display: none; } /* Ocultar labels pequeños */
-            select { display: none; } /* Ocultar combo falso en movil */
+            /* Botones individuales */
+            .action-buttons button { margin: 0; padding: 10px; font-size: 11px; height: 100%; }
             
-            #lbl-connection { font-size: 11px; padding: 6px; margin: 0; }
-            
-            /* Fila de Conectar */
-            .conn-row { display: flex; gap: 5px; }
-            #btn-connect, #btn-refresh { margin: 0; padding: 8px; font-size: 11px; }
-            
-            #lbl-zone-status { padding: 6px; font-size: 11px; margin: 0;}
-            
-            .data-panel { padding: 5px; display: flex; justify-content: space-around; margin: 0; }
-            .panel-title { display: none; }
-            .coord-text { font-size: 11px; display: inline; margin: 0 5px; }
-            
-            /* Botones en rejilla */
-            .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-            .action-grid button { margin: 0; padding: 8px; font-size: 11px; }
-            .full-width { grid-column: span 2; }
+            /* El botón de Borrar ocupa todo el ancho abajo */
+            .btn-red { grid-column: span 2; }
+
+            #lbl-instruction { margin: 2px 0; min-height: auto; font-size: 11px; }
         }
     </style>
 </head>
 <body>
 
-    <!-- PANEL DE CONTROL (ORDEN VISUAL PYTHON) -->
+    <!-- PANEL DE CONTROL -->
     <div id="sidebar">
         <h2>CERCA VIRTUAL</h2>
         
-        <!-- 1. Estado Conexión -->
-        <div id="lbl-connection">DESCONECTADO</div>
-        
-        <!-- 2. Puerto COM (Simulado visualmente) -->
-        <div class="label-small">Puerto Bluetooth:</div>
-        <select id="fake-combo" disabled>
-            <option>Seleccione dispositivo...</option>
-            <option selected>Geocerca_ESP32</option>
-        </select>
+        <!-- Botón Conectar (Sin título encima) -->
+        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
 
-        <!-- 3. Botones Conectar/Actualizar -->
-        <div class="conn-row" style="display: flex; gap: 5px; width: 100%;">
-            <button id="btn-connect" class="btn-green" style="flex: 2;" onclick="connectBLE()">CONECTAR</button>
-            <button id="btn-refresh" class="btn-gray" style="flex: 1;" onclick="location.reload()">↻</button>
+        <!-- Estado (Fila) -->
+        <div class="status-container">
+            <div id="lbl-connection" class="status-box">DESCONECTADO</div>
+            <div id="lbl-zone-status" class="status-box">---</div>
         </div>
 
-        <!-- Espaciador visual -->
-        <div style="height: 10px;"></div>
-
-        <!-- 4. Etiqueta Estado Zona -->
-        <div class="label-small" style="text-align: center; font-weight: bold; color: #ecf0f1;">ESTADO DE ZONA:</div>
-        
-        <!-- 5. Caja Estado Zona -->
-        <div id="lbl-zone-status">---</div>
-
-        <!-- 6. Panel Coordenadas -->
+        <!-- Coordenadas -->
         <div class="data-panel">
-            <div class="panel-title">POSICIÓN ACTUAL</div>
-            <span id="val-lat" class="coord-text">Lat: 0.000000</span>
-            <span id="val-lon" class="coord-text">Lon: 0.000000</span>
+            <div class="label-title" style="margin:0 0 5px 0; display:block;">POSICIÓN ACTUAL</div>
+            <span id="val-lat" class="coord-text">Lat: 0.00000</span>
+            <span id="val-lon" class="coord-text">Lon: 0.00000</span>
         </div>
 
         <!-- Instrucciones -->
         <div id="lbl-instruction"></div>
 
-        <!-- 7. Botones de Acción (Abajo) -->
-        <div class="action-grid" style="margin-top: auto; display: flex; flex-direction: column; gap: 5px;">
-            <button class="btn-purple full-width" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
-            <button id="btn-draw" class="btn-orange full-width" onclick="startDrawing()">✏ DIBUJAR (Arrastrar)</button>
-            <button id="btn-cancel" class="btn-gray full-width" style="display:none;" onclick="stopDrawing()">❌ CANCELAR</button>
-            <button class="btn-red full-width" onclick="factoryReset()">BORRAR COORDENADAS</button>
+        <!-- Botones de Acción (Grid en móvil) -->
+        <div class="action-buttons">
+            <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
+            <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR</button>
+            <button id="btn-cancel" class="btn-gray" style="display:none; grid-column: span 2;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
+            <button class="btn-red" onclick="factoryReset()">🗑 BORRAR DATOS</button>
         </div>
     </div>
 
@@ -175,6 +172,7 @@
         <div id="touch-pad"></div>
     </div>
 
+    <!-- MENSAJE FLOTANTE -->
     <div id="msg-overlay">Cargando...</div>
 
     <script>
@@ -192,11 +190,11 @@
         window.onload = () => {
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: 'OSM'}).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
+            
             fenceLayer = L.layerGroup().addTo(map);
             tempLayer = L.layerGroup().addTo(map);
-            
-            // Eventos Vidrio
+
             const pad = document.getElementById('touch-pad');
             pad.addEventListener('touchstart', handleInputStart, {passive: false});
             pad.addEventListener('touchmove', handleInputMove, {passive: false});
@@ -228,30 +226,29 @@
                 bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
                 isConnected = true;
-                updateUIState(true);
+                document.getElementById('lbl-connection').innerText = "CONECTADO";
+                document.getElementById('lbl-connection').style.backgroundColor = "#27ae60";
+                document.getElementById('btn-connect').innerText = "DESCONECTAR";
+                document.getElementById('btn-connect').className = "btn-red";
+                
                 hideMsg();
                 setTimeout(() => sendCmd("GEOJSON"), 500);
             } catch (error) {
                 hideMsg();
-                if(!error.toString().includes("cancelled")) alert("Error: " + error);
+                if(!error.toString().includes("cancelled")) alert("Error BLE: " + error);
             }
         }
 
-        function updateUIState(connected) {
-            const lbl = document.getElementById('lbl-connection');
-            const btn = document.getElementById('btn-connect');
-            if(connected) {
-                lbl.innerText = "CONECTADO"; lbl.style.backgroundColor = "#27ae60";
-                btn.innerText = "DESCONECTAR"; btn.className = "btn-red";
-            } else {
-                lbl.innerText = "DESCONECTADO"; lbl.style.backgroundColor = "#c0392b";
-                btn.innerText = "CONECTAR"; btn.className = "btn-green";
-                document.getElementById('lbl-zone-status').innerText = "---";
-                document.getElementById('lbl-zone-status').style.backgroundColor = "#95a5a6";
-            }
+        function onDisconnected() {
+            isConnected = false;
+            document.getElementById('lbl-connection').innerText = "DESCONECTADO";
+            document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
+            document.getElementById('btn-connect').innerText = "📡 CONECTAR BLUETOOTH";
+            document.getElementById('btn-connect').className = "btn-green";
+            document.getElementById('lbl-zone-status').innerText = "---";
+            document.getElementById('lbl-zone-status').style.backgroundColor = "#95a5a6";
+            alert("Dispositivo Desconectado");
         }
-
-        function onDisconnected() { isConnected = false; updateUIState(false); alert("Desconectado"); }
 
         function handleNotifications(event) {
             const value = event.target.value;
@@ -270,9 +267,8 @@
             if(msg.includes("GEOJSON")) hideMsg();
             if (msg.includes("DATA:")) {
                 try {
-                    const jsonStr = msg.split("DATA:")[1];
-                    const data = JSON.parse(jsonStr);
-                    updateUIData(data);
+                    const data = JSON.parse(msg.split("DATA:")[1]);
+                    updateUI(data);
                 } catch(e){}
             } else if (msg.includes("GEOJSON:")) {
                 try {
@@ -288,21 +284,22 @@
             await rxChar.writeValue(encoder.encode(cmd));
         }
 
-        function updateUIData(data) {
-            document.getElementById('val-lat').innerText = `Lat: ${data.lat.toFixed(6)}`;
-            document.getElementById('val-lon').innerText = `Lon: ${data.lon.toFixed(6)}`;
+        function updateUI(data) {
+            document.getElementById('val-lat').innerText = `Lat: ${data.lat.toFixed(5)}`;
+            document.getElementById('val-lon').innerText = `Lon: ${data.lon.toFixed(5)}`;
             const zoneBadge = document.getElementById('lbl-zone-status');
-            
             if(data.status === "INSIDE") {
                 zoneBadge.innerText = "DENTRO (SEGURO)"; zoneBadge.style.backgroundColor = "#27ae60";
             } else if(data.status === "ALARM") {
                 zoneBadge.innerText = "!!! ALARMA !!!"; zoneBadge.style.backgroundColor = "#c0392b";
             } else {
-                zoneBadge.innerText = "SIN CONFIGURAR"; zoneBadge.style.backgroundColor = "#3498db";
+                zoneBadge.innerText = "BUSCANDO..."; zoneBadge.style.backgroundColor = "#3498db";
             }
-            
-            if(!myMarker) myMarker = L.marker([data.lat, data.lon]).addTo(map);
-            else myMarker.setLatLng([data.lat, data.lon]);
+            if(!myMarker) {
+                myMarker = L.marker([data.lat, data.lon]).addTo(map);
+            } else {
+                myMarker.setLatLng([data.lat, data.lon]);
+            }
         }
 
         function drawFence(jsonStr) {
@@ -316,7 +313,6 @@
             if(latlngs.length > 0) map.fitBounds(L.polygon(latlngs).getBounds());
         }
 
-        // --- DIBUJO ---
         function startDrawing() {
             if(!isConnected) return alert("Conecta el Bluetooth primero");
             document.getElementById('touch-pad').style.display = 'block';
@@ -362,10 +358,9 @@
         function handleInputEnd(e) {
             if(e.cancelable) e.preventDefault();
             if (!startLatLng || !tempRect) return;
-
             const b = tempRect.getBounds();
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
-            const str = `${ne.lat},${sw.lng},${ne.lat},${ne.lng},${sw.lat},${ne.lng},${sw.lat},${sw.lng}`;
+            const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
             
             if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
@@ -377,6 +372,9 @@
             }
             stopDrawing();
         }
+
+        // Helper para formatear
+        function p1(n){ return n.toFixed(6); }
 
         function configManual() {
             if (!isConnected) return alert("Conecta primero");
@@ -404,6 +402,7 @@
             el.innerText = txt; el.style.display = 'block';
         }
         function hideMsg() { document.getElementById('msg-overlay').style.display = 'none'; }
+
     </script>
 </body>
 </html>
