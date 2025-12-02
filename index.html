@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca Universal (PC & Xiaomi)</title>
+    <title>Monitor ESP32 - Android Full</title>
     
-    <!-- Mapa Leaflet -->
+    <!-- Mapa -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- DRIVER CH340 PARA ANDROID -->
+    <!-- DRIVER OBLIGATORIO PARA ANDROID -->
     <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15/dist/serial.min.js"></script>
 
     <style>
@@ -33,15 +33,13 @@
         .btn-purple { background-color: #8e44ad; color: white; }
         .btn-orange { background-color: #d35400; color: white; }
         .btn-red { background-color: #c0392b; color: white; }
-        .btn-gray { background-color: #7f8c8d; color: white; }
         #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; }
         #map { flex-grow: 1; height: 100%; cursor: crosshair; }
-        
         #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 2000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         .loader-box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; border: 1px solid #ddd; }
         .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 15px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
+        
         @media (max-width: 600px) {
             body { flex-direction: column; }
             #sidebar { width: 100%; height: auto; padding: 10px; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; }
@@ -60,7 +58,7 @@
         <div style="width: 100%;"><div id="lbl-connection" class="status-box">DESCONECTADO</div></div>
         <div style="width: 100%;">
             <div class="label-title">PUERTO COM:</div>
-            <button id="btn-connect" class="btn-green" onclick="conectarHibrido()">🔌 CONECTAR</button>
+            <button id="btn-connect" class="btn-green" onclick="conectarAndroid()">🔌 CONECTAR (Android)</button>
         </div>
         <div style="width: 100%;">
             <div class="label-title">ESTADO DE ZONA:</div>
@@ -73,9 +71,9 @@
         </div>
         <div id="lbl-instruction" style="width: 100%;"></div>
         <div style="width: 100%; margin-top: auto;">
-            <button class="btn-purple full-width-mobile" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
-            <button id="btn-draw" class="btn-orange full-width-mobile" onclick="toggleDrawMode()">✏ DIBUJAR CERCA (Arrastrar)</button>
-            <button class="btn-red full-width-mobile" onclick="factoryReset()">⚠ BORRAR COORDENADAS</button>
+            <button class="btn-purple full-width-mobile" onclick="configManual()">⚙ MANUAL</button>
+            <button id="btn-draw" class="btn-orange full-width-mobile" onclick="toggleDrawMode()">✏ DIBUJAR (Arrastrar)</button>
+            <button class="btn-red full-width-mobile" onclick="factoryReset()">⚠ RESET</button>
         </div>
     </div>
 
@@ -90,18 +88,10 @@
     </div>
 
     <script>
-        // --- DETECCIÓN INTELIGENTE (PC vs ANDROID) ---
-        let serialAPI;
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-        // Si es Android, usamos el Polyfill (serial). Si es PC, usamos navigator.serial
-        if (isMobile && typeof serial !== 'undefined') {
-            serialAPI = serial; // Driver Android (WebUSB)
-            console.log("Modo Android Activado");
-        } else {
-            serialAPI = navigator.serial; // Driver PC
-            console.log("Modo PC Activado");
-        }
+        // --- FORZAR USO DE LA LIBRERÍA "SERIAL" (POLYFILL) ---
+        // Esto ignora si el navegador tiene serial nativo o no.
+        // Usa la librería que cargamos en el <head> que es experta en Android.
+        var androidSerial = serial; 
 
         let port, reader, writer;
         let map, polygonLayer, markersLayer, myMarker;
@@ -114,9 +104,7 @@
         window.onload = function() {
             map = L.map('map', { zoomControl: false }).setView([4.570868, -75.641], 16);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             polygonLayer = L.layerGroup().addTo(map);
             markersLayer = L.layerGroup().addTo(map);
             map.on('mousedown touchstart', onDragStart);
@@ -125,23 +113,17 @@
             document.getElementById('map').oncontextmenu = function(e) { e.preventDefault(); };
         };
 
-        // --- CONEXIÓN HÍBRIDA ---
-        async function conectarHibrido() {
+        // --- CONEXIÓN 100% ANDROID ---
+        async function conectarAndroid() {
             if (isConnected) { location.reload(); return; }
 
-            if (!serialAPI) {
-                alert("Tu navegador no soporta Serial. Usa Chrome en Android o PC.");
-                return;
-            }
-
             try {
-                showLoading("🔌 Conectando...", "Seleccione el dispositivo");
+                showLoading("🔌 Conectando...", "Seleccione su dispositivo USB");
 
-                // En Android NO usamos filtros para que aparezca todo.
-                // En PC es opcional, pero mejor sin filtros para compatibilidad.
-                let options = { filters: [] };
+                // FILTROS VACÍOS PARA QUE MUESTRE TODO LO QUE TENGA EL CELULAR CONECTADO
+                // Esto es clave para que aparezca el CH340 en Xiaomi
+                port = await androidSerial.requestPort({ filters: [] });
                 
-                port = await serialAPI.requestPort(options);
                 await port.open({ baudRate: 115200 });
 
                 const textDecoder = new TextDecoderStream();
@@ -160,14 +142,12 @@
                 document.getElementById('btn-connect').classList.add("btn-red");
 
                 // Handshake
-                setTimeout(() => sendCommand("GEOJSON"), 1500);
+                setTimeout(() => sendCommand("GEOJSON"), 1000);
                 readLoop();
 
             } catch (err) {
                 hideLoading();
-                if (!err.message.includes("No port selected")) {
-                    alert("Error: " + err.message + "\n\nNOTA XIAOMI: Activa 'OTG' en la configuración de Android.");
-                }
+                alert("ERROR DE CONEXIÓN:\n" + err);
             }
         }
 
@@ -178,7 +158,9 @@
                     if (done) break;
                     if (value) {
                         let lines = value.split('\n');
-                        for (let line of lines) if (line.trim() !== "") processLine(line.trim());
+                        for (let line of lines) {
+                            if (line.trim() !== "") processLine(line.trim());
+                        }
                     }
                 } catch (e) { break; }
             }
@@ -189,7 +171,7 @@
         }
 
         function processLine(line) {
-            // Lógica Handshake
+            // Handshake Logic
             if (isLoading && (line.includes("DATA:") || line.includes("GEOJSON:") || line.includes("SYSTEM:"))) {
                 let title = document.getElementById('load-title').innerText;
                 if(title.includes("Conectando")) hideLoading();
@@ -232,17 +214,22 @@
                 const data = JSON.parse(jsonStr);
                 const coords = data.features[0].geometry.coordinates[0];
                 const latlngs = coords.map(p => [p[1], p[0]]);
+                
                 polygonLayer.clearLayers();
                 markersLayer.clearLayers();
+                
                 const poly = L.polygon(latlngs, { color: 'blue', weight: 4, fillOpacity: 0.1 }).addTo(polygonLayer);
+                
                 latlngs.pop();
                 latlngs.forEach((p, i) => {
                     L.circleMarker(p, { radius: 6, color: '#2980b9', fillColor: 'white', fillOpacity: 1, weight: 2 }).addTo(markersLayer);
                 });
+                
                 if(latlngs.length > 0) map.fitBounds(poly.getBounds());
             } catch(e){}
         }
 
+        // --- DIBUJO ---
         function toggleDrawMode() {
             if (!isConnected) return alert("Conecta el ESP32 primero");
             isDrawing = !isDrawing;
@@ -254,7 +241,7 @@
                 info.innerText = "ARRASTRA EL DEDO EN EL MAPA";
                 map.dragging.disable();
             } else {
-                btn.innerText = "✏ DIBUJAR (Arrastrar)"; btn.style.backgroundColor = "#d35400";
+                btn.innerText = "✏ DIBUJAR CERCA (Arrastrar)"; btn.style.backgroundColor = "#d35400";
                 info.innerText = "";
                 map.dragging.enable();
                 if(tempRect) { map.removeLayer(tempRect); tempRect = null; }
@@ -294,7 +281,7 @@
 
         function configManual() {
             if (!isConnected) return alert("Conecta primero");
-            const val = prompt("Ingresa coordenadas (Lat1,Lon1...):", "4.57,-75.64...");
+            const val = prompt("Ingresa: Lat1,Lon1,Lat2,Lon2...\nEj: 4.57,-75.64...");
             if (val) {
                 sendCommand("CONFIG");
                 setTimeout(() => {
@@ -316,8 +303,6 @@
 
         function showLoading(t, d) { isLoading = true; document.getElementById('load-title').innerText = t; document.getElementById('load-desc').innerText = d; document.getElementById('loading-overlay').style.display = 'flex'; }
         function hideLoading() { isLoading = false; document.getElementById('loading-overlay').style.display = 'none'; }
-        function updateUIConn(st) { if(st) { document.getElementById('lbl-connection').innerText="CONECTADO"; document.getElementById('lbl-connection').style.backgroundColor="#27ae60"; document.getElementById('btn-connect').innerText="DESCONECTAR"; document.getElementById('btn-connect').classList.replace("btn-green","btn-red"); } }
-
     </script>
 </body>
 </html>
