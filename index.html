@@ -3,233 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monitor Geocerca Pro</title>
+    <title>Monitor Geocerca ESP32 - Pro Final</title>
     
-    <!-- Mapa Leaflet -->
+    <!-- Librería Leaflet (Mapas) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- DRIVER CH340 PARA ANDROID (Polyfill) -->
-    <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15/dist/serial.min.js"></script>
-
     <style>
-        /* ESTILOS IDÉNTICOS A TU PYTHON TKINTER */
-        body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; background: #2c3e50; overflow: hidden; }
+        body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
         
+        /* --- PANEL IZQUIERDO --- */
         #sidebar {
             width: 300px; background-color: #2c3e50; color: white;
-            display: flex; flex-direction: column; padding: 15px; box-sizing: border-box;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.5); z-index: 1000; flex-shrink: 0;
-            overflow-y: auto;
+            display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.3); z-index: 1000;
+            flex-shrink: 0; /* No encoger */
         }
 
-        h2 { text-align: center; margin: 0 0 15px 0; font-size: 18px; color: white; letter-spacing: 1px; }
+        h2 { text-align: center; margin: 0 0 20px 0; font-size: 20px; }
         
-        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 10px; font-weight: bold; }
+        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; }
         
-        .status-box { 
-            padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 13px; 
+        /* Etiquetas de Estado */
+        .status-box {
+            padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 13px;
         }
-        #lbl-connection { background-color: #c0392b; } 
+        #lbl-connection { background-color: #c0392b; margin-bottom: 10px; } /* Rojo */
         #lbl-zone-status { background-color: #95a5a6; color: white; }
 
-        .data-panel { 
-            background-color: #34495e; padding: 10px; border-radius: 4px; 
-            margin-top: 5px; border: 1px solid #465c71; text-align: center; 
+        /* Panel de Datos */
+        .data-panel {
+            background-color: #34495e; padding: 10px; border-radius: 4px;
+            margin-top: 5px; border: 1px solid #465c71; text-align: center;
         }
         .coord-text { font-family: monospace; font-size: 15px; color: #3498db; font-weight: bold; display: block; }
 
-        button { 
-            padding: 12px; margin-top: 8px; border: none; border-radius: 4px; 
-            font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px; color: white;
+        /* Botones */
+        button {
+            padding: 12px; margin-top: 8px; border: none; border-radius: 4px;
+            font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; font-size: 13px;
         }
         button:active { transform: scale(0.98); }
 
-        .btn-green { background-color: #27ae60; }
-        .btn-purple { background-color: #8e44ad; }
-        .btn-orange { background-color: #d35400; }
-        .btn-red { background-color: #c0392b; }
-        .btn-gray { background-color: #7f8c8d; }
+        .btn-green { background-color: #27ae60; color: white; }
+        .btn-purple { background-color: #8e44ad; color: white; }
+        .btn-orange { background-color: #d35400; color: white; }
+        .btn-red { background-color: #c0392b; color: white; }
+        .btn-gray { background-color: #7f8c8d; color: white; }
 
-        #lbl-instruction { 
-            color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; 
+        #lbl-instruction {
+            color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px;
         }
 
-        #map { flex-grow: 1; height: 100%; width: 100%; }
+        /* --- MAPA --- */
+        #map { flex-grow: 1; height: 100%; cursor: crosshair; }
 
-        /* OVERLAY DE CARGA */
-        #loading-overlay { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(255, 255, 255, 0.9); z-index: 2000; 
-            display: none; flex-direction: column; justify-content: center; align-items: center; 
+        /* Overlay de Carga */
+        #loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.8); z-index: 2000;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
         }
-        .spinner { 
-            border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; 
-            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; 
+        .loader-box {
+            background: white; padding: 25px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; border: 1px solid #ddd;
+        }
+        .spinner {
+            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 15px auto;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* MODO MÓVIL (Responsive) */
-        @media (max-width: 768px) {
+        /* Responsive para Móvil: Panel abajo o colapsable si se desea, aquí lo dejamos fijo para mantener diseño */
+        @media (max-width: 600px) {
             body { flex-direction: column; }
-            #sidebar { 
-                width: 100%; height: auto; max-height: 40vh; flex-direction: row; flex-wrap: wrap; 
-                padding: 10px; gap: 5px; justify-content: space-between;
-            }
-            #sidebar h2, .data-panel, .label-title { display: none; } /* Simplificar vista móvil */
-            #lbl-connection, #lbl-zone-status { width: 48%; font-size: 11px; padding: 5px; }
-            button { width: 48%; padding: 10px; font-size: 11px; margin-top: 2px; }
-            #lbl-instruction { width: 100%; margin: 2px 0; }
-            #map { height: 60vh; }
+            #sidebar { width: 100%; height: auto; padding: 10px; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+            #sidebar h2 { display: none; } /* Ocultar título en móvil para ahorrar espacio */
+            .data-panel { display: none; } /* Ocultar coordenadas numéricas en móvil si estorban */
+            #lbl-instruction { width: 100%; }
+            button { width: 48%; font-size: 11px; padding: 8px; }
+            .full-width-mobile { width: 100%; }
         }
     </style>
 </head>
 <body>
 
+    <!-- SIDEBAR DE CONTROL -->
     <div id="sidebar">
-        <h2 id="desktop-title">CERCA VIRTUAL</h2>
-        
-        <!-- Estado Conexión -->
-        <div id="lbl-connection" class="status-box">DESCONECTADO</div>
-        
-        <!-- Botón Conectar -->
-        <button id="btn-connect" class="btn-green" onclick="conectarUSB()">🔌 CONECTAR</button>
+        <h2>CERCA VIRTUAL</h2>
 
-        <!-- Estado Zona -->
-        <div class="label-title">ESTADO:</div>
-        <div id="lbl-zone-status" class="status-box">---</div>
-
-        <!-- Coordenadas -->
-        <div class="data-panel">
-            <div style="font-size: 10px; color: #ecf0f1;">POSICIÓN ACTUAL</div>
-            <span id="val-lat" class="coord-text">0.000000</span>
-            <span id="val-lon" class="coord-text">0.000000</span>
+        <div style="width: 100%;">
+            <div id="lbl-connection" class="status-box">DESCONECTADO</div>
+        </div>
+        
+        <div style="width: 100%;">
+            <div class="label-title">PUERTO COM:</div>
+            <button id="btn-connect" class="btn-green" onclick="toggleConnection()">🔌 CONECTAR</button>
         </div>
 
-        <!-- Instrucciones -->
-        <div id="lbl-instruction"></div>
+        <div style="width: 100%;">
+            <div class="label-title">ESTADO DE ZONA:</div>
+            <div id="lbl-zone-status" class="status-box">---</div>
+        </div>
 
-        <!-- Botones Acción -->
-        <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
-        <button id="btn-draw" class="btn-orange" onclick="toggleDrawMode()">✏ DIBUJAR (Arrastrar)</button>
-        <button class="btn-red" onclick="factoryReset()">⚠ BORRAR</button>
+        <div class="data-panel" style="width: 100%;">
+            <div style="font-size: 10px; color: #ecf0f1; margin-bottom:5px;">POSICIÓN ACTUAL</div>
+            <span id="val-lat" class="coord-text">Lat: 0.000000</span>
+            <span id="val-lon" class="coord-text">Lon: 0.000000</span>
+        </div>
+
+        <div id="lbl-instruction" style="width: 100%;"></div>
+
+        <div style="width: 100%; margin-top: auto;">
+            <button class="btn-purple full-width-mobile" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
+            <button id="btn-draw" class="btn-orange full-width-mobile" onclick="toggleDrawMode()">✏ DIBUJAR CERCA (Arrastrar)</button>
+            <button class="btn-red full-width-mobile" onclick="factoryReset()">⚠ BORRAR COORDENADAS</button>
+        </div>
     </div>
 
+    <!-- MAPA -->
     <div id="map"></div>
 
+    <!-- OVERLAY DE CARGA -->
     <div id="loading-overlay">
-        <div class="spinner"></div>
-        <h3 id="load-title" style="margin:0; color:#333;">Cargando...</h3>
-        <div id="load-desc" style="color:#666; font-size: 14px;">Espere...</div>
+        <div class="loader-box">
+            <h3 id="load-title" style="margin:0; color:#333;">Cargando...</h3>
+            <div class="spinner"></div>
+            <div id="load-desc" style="color:#666;">Espere respuesta...</div>
+        </div>
     </div>
 
     <script>
-        // --- SELECCIÓN AUTOMÁTICA DE DRIVER (ANDROID VS PC) ---
-        let serialDriver = navigator.serial;
-        if (typeof serialPolyfill !== 'undefined') {
-            // Si existe el Polyfill, lo usamos. Esto arregla el problema en Android.
-            serialDriver = serial; 
-        }
-
-        let port, reader, writer;
+        // --- VARIABLES GLOBALES ---
         let map, polygonLayer, markersLayer, myMarker;
+        let port, reader, writer;
         let isConnected = false;
         let isLoading = false;
+        
+        // Variables Dibujo
         let isDrawing = false;
         let startPoint = null;
         let tempRect = null;
 
-        // INICIALIZAR MAPA
+        // --- INICIALIZAR ---
         window.onload = function() {
+            // Mapa centrado en Colombia
             map = L.map('map', { zoomControl: false }).setView([4.570868, -75.641], 16);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: 'OpenStreetMap'
-            }).addTo(map);
             
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
             polygonLayer = L.layerGroup().addTo(map);
             markersLayer = L.layerGroup().addTo(map);
 
-            // Eventos táctiles y de mouse para dibujar
+            // Eventos para arrastrar rectángulo (Touch y Mouse)
             map.on('mousedown touchstart', onDragStart);
             map.on('mousemove touchmove', onDragMove);
             map.on('mouseup touchend', onDragEnd);
             
-            // Prevenir menú contextual
-            document.getElementById('map').oncontextmenu = (e) => e.preventDefault();
+            // Evitar menú contextual
+            document.getElementById('map').oncontextmenu = function(e) { e.preventDefault(); };
         };
 
-        // --- CONEXIÓN USB (OTG) ---
-        async function conectarUSB() {
-            if (isConnected) { location.reload(); return; }
+        // --- LÓGICA SERIAL (USB OTG) ---
+        async function toggleConnection() {
+            if (!isConnected) {
+                if ("serial" in navigator) {
+                    try {
+                        showLoading("🔌 Conectando...", "Esperando datos del ESP32...");
+                        
+                        port = await navigator.serial.requestPort();
+                        await port.open({ baudRate: 115200 });
+                        
+                        const textDecoder = new TextDecoderStream();
+                        const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                        reader = textDecoder.readable.getReader();
 
-            if (!serialDriver) {
-                alert("Tu navegador no soporta Serial. Usa Chrome en Android.");
-                return;
-            }
+                        const textEncoder = new TextEncoderStream();
+                        const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+                        writer = textEncoder.writable.getWriter();
 
-            try {
-                showLoading("🔌 Conectando...", "Selecciona tu ESP32");
-                
-                // Pedir puerto sin filtros para ver todo
-                port = await serialDriver.requestPort({ filters: [] });
-                await port.open({ baudRate: 115200 });
-
-                const textDecoder = new TextDecoderStream();
-                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-                reader = textDecoder.readable.getReader();
-
-                const textEncoder = new TextEncoderStream();
-                const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
-                writer = textEncoder.writable.getWriter();
-
-                isConnected = true;
-                document.getElementById('lbl-connection').innerText = "CONECTADO";
-                document.getElementById('lbl-connection').style.backgroundColor = "#27ae60";
-                document.getElementById('btn-connect').innerText = "DESCONECTAR";
-                document.getElementById('btn-connect').className = "btn-red";
-
-                // Handshake
-                setTimeout(() => sendCommand("GEOJSON"), 1000);
-                readLoop();
-
-            } catch (err) {
-                hideLoading();
-                alert("Error: " + err + "\n\n1. Activa OTG en ajustes.\n2. Cierra otras apps USB.\n3. Usa cable de datos.");
+                        isConnected = true;
+                        updateUIConn(true);
+                        
+                        // Pedir datos para despertar el Handshake
+                        setTimeout(() => sendCommand("GEOJSON"), 1500);
+                        
+                        readLoop();
+                    } catch (err) {
+                        hideLoading();
+                        alert("Error: " + err);
+                    }
+                } else {
+                    alert("Tu navegador no soporta Web Serial. Usa Chrome o Edge en Android/PC.");
+                    hideLoading();
+                }
+            } else {
+                location.reload(); // Desconectar recargando la página
             }
         }
 
         async function readLoop() {
+            let buffer = "";
             while (true) {
-                try {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    if (value) {
-                        let lines = value.split('\n');
-                        for (let line of lines) if (line.trim() !== "") processLine(line.trim());
-                    }
-                } catch (e) { break; }
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += value;
+                let lines = buffer.split('\n');
+                buffer = lines.pop(); 
+
+                for (const line of lines) processLine(line.trim());
             }
         }
 
         async function sendCommand(cmd) {
-            if (writer) await writer.write(cmd + "\n");
+            if (writer) {
+                await writer.write(cmd + "\n");
+                console.log("TX:", cmd);
+            }
         }
 
+        // --- PROCESAMIENTO DE DATOS ---
         function processLine(line) {
-            // Lógica de carga inteligente
-            if (isLoading && (line.includes("DATA:") || line.includes("GEOJSON:") || line.includes("SYSTEM:"))) {
-                let title = document.getElementById('load-title').innerText;
-                if(title.includes("Conectando")) hideLoading();
-                else if(title.includes("Actualizando") && (line.includes("GEOJSON:") || line.includes("JSON_START:"))) hideLoading();
+            console.log("RX:", line);
+
+            // --- LÓGICA DE HANDSHAKE (QUITAR CARGA) ---
+            if (isLoading && (line.startsWith("DATA:") || line.startsWith("GEOJSON:") || line.startsWith("SYSTEM:"))) {
+                const title = document.getElementById('load-title').innerText;
+                
+                // Si estamos conectando, cualquier dato sirve
+                if (title.includes("Conectando")) {
+                    hideLoading();
+                }
+                // Si estamos actualizando zona, SOLO el mapa quita la carga
+                else if (title.includes("Actualizando") && (line.startsWith("GEOJSON:") || line.startsWith("JSON_START:"))) {
+                    hideLoading();
+                }
             }
 
+            // Parsear DATA (Tiempo Real)
             if (line.startsWith("DATA:")) {
                 try {
-                    let data = JSON.parse(line.replace("DATA:", ""));
-                    updateUI(data);
+                    const data = JSON.parse(line.replace("DATA:", ""));
+                    updateDashboard(data);
                 } catch(e){}
-            } else if (line.startsWith("GEOJSON:") || line.startsWith("JSON_START:")) {
+            } 
+            // Parsear GEOJSON (Mapa)
+            else if (line.startsWith("GEOJSON:") || line.startsWith("JSON_START:")) {
                 try {
                     let jsonStr = line.replace("GEOJSON:", "").replace("JSON_START:", "");
                     drawGeoJSON(jsonStr);
@@ -237,111 +260,159 @@
             }
         }
 
-        function updateUI(data) {
-            document.getElementById('val-lat').innerText = data.lat.toFixed(6);
-            document.getElementById('val-lon').innerText = data.lon.toFixed(6);
-            
-            const lbl = document.getElementById('lbl-zone-status');
-            if(data.status === "INSIDE") { lbl.innerText = "DENTRO"; lbl.style.backgroundColor = "#27ae60"; }
-            else if(data.status === "ALARM") { lbl.innerText = "!!! ALARMA !!!"; lbl.style.backgroundColor = "#c0392b"; }
-            else if(data.status === "NO_CONFIG") { lbl.innerText = "SIN CONFIG"; lbl.style.backgroundColor = "#3498db"; }
-            else { lbl.innerText = "BUSCANDO..."; lbl.style.backgroundColor = "#f39c12"; }
+        function updateDashboard(data) {
+            document.getElementById('val-lat').innerText = `Lat: ${data.lat.toFixed(6)}`;
+            document.getElementById('val-lon').innerText = `Lon: ${data.lon.toFixed(6)}`;
 
+            const lbl = document.getElementById('lbl-zone-status');
+            const states = {
+                "INSIDE": { txt: "DENTRO (SEGURO)", col: "#27ae60" },
+                "ALARM": { txt: "!!! ALARMA !!!", col: "#c0392b" },
+                "BAD_SIGNAL": { txt: "MALA SEÑAL", col: "#f39c12" },
+                "NO_CONFIG": { txt: "SIN CONFIGURAR", col: "#3498db" }
+            };
+            const st = states[data.status] || { txt: "DESCONOCIDO", col: "gray" };
+            lbl.innerText = st.txt;
+            lbl.style.backgroundColor = st.col;
+
+            // Marcador "Yo" (Rojo)
             if (!myMarker) {
-                myMarker = L.circleMarker([data.lat, data.lon], { radius: 8, color: 'white', fillColor: '#d32f2f', fillOpacity: 1, weight: 2 }).addTo(map).bindPopup("Yo");
+                myMarker = L.circleMarker([data.lat, data.lon], {
+                    radius: 8, fillColor: "#d32f2f", color: "#fff", weight: 2, fillOpacity: 1
+                }).addTo(map).bindPopup("Yo");
             } else {
                 myMarker.setLatLng([data.lat, data.lon]);
             }
         }
 
         function drawGeoJSON(jsonStr) {
+            // Seguridad: Si llega el mapa, quitamos carga
             hideLoading();
             try {
                 const data = JSON.parse(jsonStr);
                 const coords = data.features[0].geometry.coordinates[0];
-                const latlngs = coords.map(p => [p[1], p[0]]);
-                
+                const latlngs = coords.map(p => [p[1], p[0]]); // Leaflet es [Lat, Lon]
+
                 polygonLayer.clearLayers();
                 markersLayer.clearLayers();
-                
-                // Path Azul limpio
-                const poly = L.polygon(latlngs, { color: 'blue', weight: 4, fillOpacity: 0.1 }).addTo(polygonLayer);
-                
-                // Marcadores esquinas
-                latlngs.pop();
+
+                // Path Azul (Borde)
+                const poly = L.polygon(latlngs, {
+                    color: 'blue', weight: 5, fillOpacity: 0.1
+                }).addTo(polygonLayer);
+
+                // Marcadores esquinas (Azules limpios)
+                latlngs.pop(); // Quitar el ultimo repetido
                 latlngs.forEach((p, i) => {
-                    L.circleMarker(p, { radius: 6, color: '#2980b9', fillColor: 'white', fillOpacity: 1, weight: 2 }).addTo(markersLayer);
+                    L.circleMarker(p, { 
+                        radius: 6, fillColor: "#2980b9", color: "#fff", weight: 2, fillOpacity: 1 
+                    }).addTo(markersLayer);
                 });
-                
+
                 if(latlngs.length > 0) map.fitBounds(poly.getBounds());
-            } catch(e){}
+            } catch(e) { console.error(e); }
         }
 
-        // --- DIBUJO ---
+        // --- DIBUJO (ARRASTRAR) ---
         function toggleDrawMode() {
             if (!isConnected) return alert("Conecta el ESP32 primero");
             isDrawing = !isDrawing;
+            
             const btn = document.getElementById('btn-draw');
             const info = document.getElementById('lbl-instruction');
 
             if (isDrawing) {
-                btn.innerText = "❌ CANCELAR"; btn.className = "btn-gray";
-                info.innerText = "ARRASTRA EL DEDO EN EL MAPA";
-                map.dragging.disable();
+                btn.innerText = "❌ CANCELAR";
+                btn.className = "btn-gray"; // Cambiar estilo visualmente
+                info.innerText = "TOCA Y ARRASTRA EN EL MAPA PARA DIBUJAR";
+                map.dragging.disable(); // Bloquear movimiento del mapa
             } else {
-                btn.innerText = "✏ DIBUJAR (Arrastrar)"; btn.className = "btn-orange";
+                btn.innerText = "✏ DIBUJAR CERCA (Arrastrar)";
+                btn.className = "btn-orange";
                 info.innerText = "";
-                map.dragging.enable();
+                map.dragging.enable(); // Reactivar movimiento
                 if(tempRect) { map.removeLayer(tempRect); tempRect = null; }
             }
         }
 
         function onDragStart(e) {
             if (!isDrawing) return;
-            // Soporte para touch y mouse
-            let latlng = e.latlng || map.mouseEventToLatLng(e.originalEvent);
-            startPoint = latlng;
+            startPoint = e.latlng;
+            // Rectángulo Rojo Temporal (Solo borde visual)
             tempRect = L.rectangle([startPoint, startPoint], {color: "red", weight: 2, fill: false}).addTo(map);
         }
 
         function onDragMove(e) {
             if (!isDrawing || !startPoint || !tempRect) return;
-            let latlng = e.latlng || map.mouseEventToLatLng(e.originalEvent);
-            tempRect.setBounds([startPoint, latlng]);
+            tempRect.setBounds([startPoint, e.latlng]);
         }
 
         function onDragEnd(e) {
             if (!isDrawing || !startPoint) return;
             
             const bounds = tempRect.getBounds();
-            const p1 = [bounds.getNorthEast().lat, bounds.getSouthWest().lng];
-            const p2 = [bounds.getNorthEast().lat, bounds.getNorthEast().lng];
-            const p3 = [bounds.getSouthWest().lat, bounds.getNorthEast().lng];
-            const p4 = [bounds.getSouthWest().lat, bounds.getSouthWest().lng];
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
             
-            const str = `${p1[0]},${p1[1]},${p2[0]},${p2[1]},${p3[0]},${p3[1]},${p4[0]},${p4[1]}`;
+            // 4 Puntos: ArribaIzq, ArribaDer, AbajoDer, AbajoIzq
+            const p1 = [ne.lat, sw.lng];
+            const p2 = [ne.lat, ne.lng];
+            const p3 = [sw.lat, ne.lng];
+            const p4 = [sw.lat, sw.lng];
             
-            map.removeLayer(tempRect); tempRect = null; startPoint = null;
+            const coordsStr = `${p1[0]},${p1[1]},${p2[0]},${p2[1]},${p3[0]},${p3[1]},${p4[0]},${p4[1]}`;
             
-            if(confirm("¿Guardar esta zona?")) {
+            // Borrar dibujo rojo inmediatamente para limpieza visual
+            map.removeLayer(tempRect);
+            tempRect = null;
+            startPoint = null;
+
+            if(confirm("¿Establecer esta zona?")) {
                 sendCommand("CONFIG");
                 setTimeout(() => {
-                    sendCommand(str);
-                    showLoading("📡 Actualizando Zona...", "Guardando...");
+                    sendCommand(coordsStr);
+                    showLoading("📡 Actualizando Zona...", "Guardando en el ESP32");
+                    
+                    // Esperar mapa. NO hay timer de ocultar, se oculta al llegar GEOJSON.
                     setTimeout(() => sendCommand("GEOJSON"), 3000);
                 }, 500);
             }
-            toggleDrawMode();
+            
+            toggleDrawMode(); // Salir del modo dibujo
+        }
+
+        // --- UTILS UI ---
+        function updateUIConn(status) {
+            const lbl = document.getElementById('lbl-connection');
+            const btn = document.getElementById('btn-connect');
+            if (status) {
+                lbl.innerText = "CONECTADO";
+                lbl.style.backgroundColor = "#27ae60";
+                btn.innerText = "DESCONECTAR";
+                btn.className = "btn-red";
+            }
+        }
+
+        function showLoading(title, desc) {
+            isLoading = true;
+            document.getElementById('load-title').innerText = title;
+            document.getElementById('load-desc').innerText = desc;
+            document.getElementById('loading-overlay').style.display = "flex"; // Flex para centrar
+        }
+
+        function hideLoading() {
+            isLoading = false;
+            document.getElementById('loading-overlay').style.display = "none";
         }
 
         function configManual() {
             if (!isConnected) return alert("Conecta primero");
-            const val = prompt("Ingresa: Lat1,Lon1,Lat2,Lon2...\nEj: 4.57,-75.64...");
+            const val = prompt("Ingresa: Lat1,Lon1,Lat2,Lon2...\nEj: 4.570646,-75.641350...");
             if (val) {
                 sendCommand("CONFIG");
                 setTimeout(() => {
                     sendCommand(val);
-                    showLoading("📡 Actualizando...", "Guardando...");
+                    showLoading("📡 Actualizando...", "Enviando datos");
                     setTimeout(() => sendCommand("GEOJSON"), 3000);
                 }, 500);
             }
@@ -349,15 +420,13 @@
 
         function factoryReset() {
             if (!isConnected) return alert("Conecta primero");
-            if(confirm("¿Borrar todo?")) {
+            if(confirm("¿Borrar configuración?")) {
                 sendCommand("RESET");
                 polygonLayer.clearLayers();
                 markersLayer.clearLayers();
             }
         }
 
-        function showLoading(t, d) { isLoading = true; document.getElementById('load-title').innerText = t; document.getElementById('load-desc').innerText = d; document.getElementById('loading-overlay').style.display = 'flex'; }
-        function hideLoading() { isLoading = false; document.getElementById('loading-overlay').style.display = 'none'; }
     </script>
 </body>
 </html>
