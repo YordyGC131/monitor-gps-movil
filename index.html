@@ -320,7 +320,7 @@
             } else if(data.status === "ALARM") {
                 zoneBadge.innerText = "!!! ALARMA !!!"; zoneBadge.style.backgroundColor = "#c0392b";
             } else {
-                zoneBadge.innerText = "BUSCANDO..."; zoneBadge.style.backgroundColor = "#3498db";
+                zoneBadge.innerText = "SIN COORDENADAS..."; zoneBadge.style.backgroundColor = "#3498db";
             }
             if(!myMarker) {
                 myMarker = L.marker([data.lat, data.lon]).addTo(map);
