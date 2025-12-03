@@ -238,7 +238,7 @@
             try {
                 showMsg("Conectando...", "Buscando dispositivo ESP32");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: "Geocerca" }],
+                    filters: [{ namePrefix: "Cerca Virtual" }],
                     optionalServices: [SERVICE_UUID]
                 });
                 const server = await bluetoothDevice.gatt.connect();
