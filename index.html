@@ -3,14 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - App</title>
-    
-    <!-- CONFIGURACIÓN PWA (MODO APK) -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2c3e50">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/684/684908.png">
+    <title>Geocerca BLE - UI Pro</title>
     
     <!-- Librería de Mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -19,16 +12,11 @@
     <style>
         /* --- ESTILOS GENERALES --- */
         body { 
-            margin: 0; display: flex; 
-            flex-direction: row; /* PC: Izquierda-Derecha */
-            height: 100vh; 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            background: #2c3e50; 
-            overflow: hidden; 
-            overscroll-behavior: none; /* Evita rebote en movil */
+            margin: 0; display: flex; flex-direction: row; height: 100vh; 
+            font-family: 'Segoe UI', Arial, sans-serif; background: #2c3e50; overflow: hidden; 
         }
         
-        /* --- SIDEBAR (PC) --- */
+        /* --- SIDEBAR --- */
         #sidebar {
             width: 300px; background-color: #2c3e50; color: white;
             display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
@@ -40,23 +28,16 @@
         
         .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; text-transform: uppercase; }
         
-        /* Estados */
         .status-container { display: flex; gap: 5px; width: 100%; }
         .status-box { padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 12px; flex: 1; }
         #lbl-connection { background-color: #c0392b; color: white; transition: 0.3s; } 
         #lbl-zone-status { background-color: #95a5a6; color: white; transition: 0.3s; }
 
-        /* Coordenadas */
         .data-panel { background-color: #34495e; padding: 8px; border-radius: 4px; margin-top: 5px; text-align: center; border: 1px solid #4a6278; }
         .coord-text { font-family: 'Courier New', monospace; font-size: 13px; color: #3498db; font-weight: bold; display: block; }
 
-        /* Instrucciones */
-        #lbl-instruction {
-            color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; 
-            font-size: 12px; font-weight: bold;
-        }
+        #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; font-weight: bold; }
 
-        /* Botones */
         .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
         
         button {
@@ -64,7 +45,7 @@
             cursor: pointer; font-size: 13px; width: 100%; transition: 0.2s;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        button:active { transform: scale(0.98); }
+        button:active { transform: scale(0.95); }
 
         .btn-green { background-color: #27ae60; }
         .btn-purple { background-color: #8e44ad; }
@@ -74,61 +55,65 @@
 
         /* --- MAPA --- */
         #map-container { flex-grow: 1; position: relative; height: 100%; }
-        #map { width: 100%; height: 100%; touch-action: none; } /* CRÍTICO: touch-action none */
-        
-        /* VIDRIO (TOUCH PAD) */
+        #map { width: 100%; height: 100%; }
         #touch-pad {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 3000; background: rgba(0,0,0,0); display: none;
             touch-action: none; cursor: crosshair;
         }
 
-        /* --- OVERLAY --- */
+        /* =========================================
+           NUEVO DISEÑO DE PANTALLA DE CARGA
+           ========================================= */
         #msg-overlay {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.85); color: white; padding: 20px 30px; border-radius: 10px;
-            display: none; z-index: 4000; text-align: center; font-weight: bold;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(33, 43, 54, 0.85); /* Fondo oscuro elegante */
+            backdrop-filter: blur(4px); /* Efecto borroso moderno */
+            z-index: 5000; 
+            display: none; 
+            flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.3s ease;
         }
 
-        /* =========================================
-           DISEÑO MÓVIL (TODO VISIBLE)
-           ========================================= */
+        .loading-card {
+            background: white;
+            padding: 25px 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            text-align: center;
+            animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-width: 80%;
+        }
+
+        .loading-spinner {
+            width: 50px; height: 50px;
+            border: 5px solid #ecf0f1;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+
+        #overlay-title { font-size: 18px; color: #2c3e50; margin: 0 0 5px 0; font-weight: bold; }
+        #overlay-desc { font-size: 13px; color: #7f8c8d; margin: 0; }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes popUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* --- RESPONSIVE --- */
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; } 
-
-            #sidebar {
-                width: 100%; 
-                height: auto; 
-                max-height: 50%; 
-                padding: 8px;
-                border-top: 3px solid #e67e22;
-                box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
-                gap: 3px;
-            }
-
+            #sidebar { width: 100%; height: auto; max-height: 45vh; padding: 8px; border-top: 3px solid #e67e22; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); gap: 3px; }
             #map-container { flex: 1; }
-            
             h2, .label-title { display: none; }
-
-            #btn-connect { margin: 0; padding: 10px; font-size: 13px; }
+            #btn-connect { margin: 0; padding: 12px; font-size: 13px; }
             .status-container { margin: 0; gap: 5px; }
-            .status-box { padding: 5px; font-size: 11px; margin: 0; }
-
+            .status-box { padding: 6px; font-size: 11px; margin: 0; }
             .data-panel { padding: 4px; display: flex; justify-content: space-around; margin: 0; }
             .coord-text { font-size: 11px; }
-
-            /* GRID BOTONES */
-            .action-buttons { 
-                display: grid; 
-                grid-template-columns: 1fr 1fr; 
-                gap: 6px; 
-                margin-top: 5px;
-            }
-            
+            .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; }
             .action-buttons button { margin: 0; padding: 10px; font-size: 11px; height: 100%; }
             .btn-red { grid-column: span 2; }
-
             #lbl-instruction { margin: 2px 0; min-height: auto; font-size: 11px; }
         }
     </style>
@@ -138,19 +123,12 @@
     <!-- PANEL DE CONTROL -->
     <div id="sidebar">
         <h2>CERCA VIRTUAL</h2>
-        
-        <!-- Botón Conectar -->
-        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
-
-        <!-- Estado -->
         <div class="status-container">
             <div id="lbl-connection" class="status-box">DESCONECTADO</div>
             <div id="lbl-zone-status" class="status-box">---</div>
         </div>
-        
-        <div class="label-title">COORDENADAS:</div>
-        
-        <!-- Coordenadas -->
+        <div class="label-title">CONEXIÓN:</div>
+        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
         <div class="data-panel">
             <div class="label-title" style="margin:0 0 5px 0; display:block; font-size:9px;">POSICIÓN ACTUAL</div>
             <div style="display:flex; justify-content: space-around;">
@@ -158,11 +136,7 @@
                 <span id="val-lon" class="coord-text">Lon: 0.00000</span>
             </div>
         </div>
-
-        <!-- Instrucciones -->
         <div id="lbl-instruction"></div>
-
-        <!-- Botones de Acción -->
         <div class="action-buttons">
             <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
             <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR</button>
@@ -177,17 +151,22 @@
         <div id="touch-pad"></div>
     </div>
 
-    <!-- MENSAJE FLOTANTE -->
-    <div id="msg-overlay">Cargando...</div>
+    <!-- MENSAJE FLOTANTE (Diseño Mejorado) -->
+    <div id="msg-overlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <div id="overlay-title">Cargando...</div>
+            <div id="overlay-desc">Por favor espere</div>
+        </div>
+    </div>
 
     <script>
-        // --- UUIDs BLE ---
         const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
         const RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
         const TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
         let bluetoothDevice, rxChar, txChar;
-        let map, myMarker, fenceLayer, tempLayer;
+        let map, fenceLayer, markersLayer, myMarker;
         let isConnected = false;
         let buffer = "";
         let startLatLng = null;
@@ -197,11 +176,8 @@
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
             L.control.zoom({ position: 'topright' }).addTo(map);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
-            
             fenceLayer = L.layerGroup().addTo(map);
             tempLayer = L.layerGroup().addTo(map);
-
-            // EVENTOS DE DIBUJO SOBRE EL VIDRIO
             const pad = document.getElementById('touch-pad');
             pad.addEventListener('touchstart', handleInputStart, {passive: false});
             pad.addEventListener('touchmove', handleInputMove, {passive: false});
@@ -218,7 +194,7 @@
                 return;
             }
             try {
-                showMsg("Buscando ESP32...");
+                showMsg("Conectando...", "Buscando dispositivo ESP32");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: "Geocerca" }],
                     optionalServices: [SERVICE_UUID]
@@ -240,7 +216,6 @@
                 
                 hideMsg();
                 setTimeout(() => sendCmd("GEOJSON"), 500);
-
             } catch (error) {
                 hideMsg();
                 if(!error.toString().includes("cancelled")) alert("Error BLE: " + error);
@@ -321,7 +296,6 @@
             if(latlngs.length > 0) map.fitBounds(L.polygon(latlngs).getBounds());
         }
 
-        // --- DIBUJO PRECISO ---
         function startDrawing() {
             if(!isConnected) return alert("Conecta el Bluetooth primero");
             document.getElementById('touch-pad').style.display = 'block';
@@ -346,7 +320,8 @@
             } else {
                 clientX = e.clientX; clientY = e.clientY;
             }
-            const rect = document.getElementById('map').getBoundingClientRect();
+            const mapContainer = document.getElementById('map');
+            const rect = mapContainer.getBoundingClientRect();
             return map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
         }
 
@@ -360,7 +335,8 @@
         function handleInputMove(e) {
             if(e.cancelable) e.preventDefault();
             if (!startLatLng || !tempRect) return;
-            tempRect.setBounds([startLatLng, getMapCoords(e)]);
+            const currentLatLng = getMapCoords(e);
+            tempRect.setBounds([startLatLng, currentLatLng]);
         }
 
         function handleInputEnd(e) {
@@ -369,11 +345,12 @@
             const b = tempRect.getBounds();
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
+            
             if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
-                    showMsg("Guardando...");
+                    showMsg("Guardando...", "Enviando al ESP32");
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
@@ -389,7 +366,7 @@
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(val);
-                    showMsg("Guardando...");
+                    showMsg("Guardando...", "Procesando datos");
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
@@ -403,9 +380,10 @@
             }
         }
 
-        function showMsg(txt) {
-            const el = document.getElementById('msg-overlay');
-            el.innerText = txt; el.style.display = 'block';
+        function showMsg(t, d) {
+            document.getElementById('overlay-title').innerText = t;
+            document.getElementById('overlay-desc').innerText = d || "Espere...";
+            document.getElementById('msg-overlay').style.display = 'flex';
         }
         function hideMsg() { document.getElementById('msg-overlay').style.display = 'none'; }
     </script>
