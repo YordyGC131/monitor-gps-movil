@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cerca virtual Tecnoparque Quindío  - App</title>
+    <title>Geocerca BLE - App</title>
     
     <!-- CONFIGURACIÓN PWA (MODO APK) -->
     <link rel="manifest" href="manifest.json">
@@ -150,7 +150,7 @@
 
     <!-- PANEL DE CONTROL -->
     <div id="sidebar">
-        <h2>CERCA VIRTUAL TECNOPARQUE QUINDIO</h2>
+        <h2>CERCA VIRTUAL</h2>
         
         <div class="status-container">
             <div id="lbl-connection" class="status-box">DESCONECTADO</div>
@@ -158,7 +158,7 @@
         </div>
         
         <div class="label-title">CONEXIÓN:</div>
-        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR DISPOSITIVO MEDIANTE BLUETOOTH</button>
+        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
 
         <div class="data-panel">
             <div class="label-title" style="margin:0 0 5px 0; display:block; font-size:9px;">POSICIÓN ACTUAL</div>
@@ -172,10 +172,10 @@
 
         <div class="action-buttons">
             <!-- AGREGADO: disabled al inicio -->
-            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ COORDENADAS MANUALES</button>
-            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR CERCA</button>
+            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ MANUAL</button>
+            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR</button>
             <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
-            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR COORDENADAS</button>
+            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR DATOS</button>
         </div>
     </div>
 
@@ -238,7 +238,7 @@
             try {
                 showMsg("Conectando...", "Buscando dispositivo ESP32");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: "Cerca Virtual Tecnoparque Quindío" }],
+                    filters: [{ namePrefix: "Geocerca" }],
                     optionalServices: [SERVICE_UUID]
                 });
                 const server = await bluetoothDevice.gatt.connect();
@@ -320,7 +320,7 @@
             } else if(data.status === "ALARM") {
                 zoneBadge.innerText = "!!! ALARMA !!!"; zoneBadge.style.backgroundColor = "#c0392b";
             } else {
-                zoneBadge.innerText = "SIN COORDENADAS..."; zoneBadge.style.backgroundColor = "#3498db";
+                zoneBadge.innerText = "BUSCANDO..."; zoneBadge.style.backgroundColor = "#3498db";
             }
             if(!myMarker) {
                 myMarker = L.marker([data.lat, data.lon]).addTo(map);
@@ -390,7 +390,7 @@
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
             
-            if(confirm("¿Desas configurar esta nueva cerca?")) {
+            if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
