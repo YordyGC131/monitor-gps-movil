@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - UI Pro</title>
+    <title>Geocerca BLE - App</title>
     
     <!-- CONFIGURACIÓN PWA (MODO APK) -->
     <link rel="manifest" href="manifest.json">
@@ -26,6 +26,7 @@
             font-family: 'Segoe UI', Arial, sans-serif; 
             background: #2c3e50; 
             overflow: hidden; 
+            overscroll-behavior: none; 
         }
         
         /* --- SIDEBAR (PC) --- */
@@ -65,6 +66,15 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         button:active { transform: scale(0.98); }
+        
+        /* Estilo para botones deshabilitados */
+        button:disabled {
+            background-color: #555 !important;
+            color: #aaa !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+        }
 
         .btn-green { background-color: #27ae60; }
         .btn-purple { background-color: #8e44ad; }
@@ -81,13 +91,10 @@
             touch-action: none; cursor: crosshair;
         }
 
-        /* ====================================================== 
-           PANTALLA DE CARGA MODERNA (GLASSMORPHISM + POPUP)
-           ====================================================== */
+        /* --- OVERLAY --- */
         #msg-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            /* Fondo oscuro semitransparente con desenfoque */
-            background: rgba(33, 43, 54, 0.75); 
+            background: rgba(33, 43, 54, 0.85); 
             backdrop-filter: blur(8px); 
             -webkit-backdrop-filter: blur(8px);
             z-index: 5000; 
@@ -102,7 +109,6 @@
             border-radius: 20px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             text-align: center;
-            /* Animación de entrada suave */
             animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             min-width: 250px;
         }
@@ -110,7 +116,7 @@
         .loading-spinner {
             width: 50px; height: 50px;
             border: 5px solid #ecf0f1;
-            border-top: 5px solid #3498db; /* Color azul corporativo */
+            border-top: 5px solid #3498db;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             margin: 0 auto 20px auto;
@@ -120,42 +126,22 @@
         #overlay-desc { font-size: 14px; color: #7f8c8d; margin: 0; font-weight: 500; }
 
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes popUp { 
-            from { transform: scale(0.7); opacity: 0; } 
-            to { transform: scale(1); opacity: 1; } 
-        }
+        @keyframes popUp { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        /* =========================================
-           DISEÑO MÓVIL CORREGIDO (PANEL VISIBLE)
-           ========================================= */
+        /* RESPONSIVE */
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; } 
-
-            #sidebar {
-                width: 100%; height: auto; max-height: 50%; 
-                padding: 10px; border-top: 3px solid #e67e22;
-                box-shadow: 0 -5px 15px rgba(0,0,0,0.3); gap: 5px;
-                overflow-y: auto; -webkit-overflow-scrolling: touch;
-            }
-
+            #sidebar { width: 100%; height: auto; max-height: 50%; padding: 10px; border-top: 3px solid #e67e22; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); gap: 3px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
             #map-container { flex: 1; min-height: 50%; }
-
             h2 { display: none; } .label-title { display: none; }
-
             #btn-connect { margin: 0; padding: 12px; font-size: 13px; }
             .status-container { margin: 0; gap: 5px; }
             .status-box { padding: 6px; font-size: 11px; margin: 0; }
-
             .data-panel { padding: 4px; display: flex; justify-content: space-around; margin: 0; }
             .coord-text { font-size: 11px; }
-
-            .action-buttons { 
-                display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px;
-                margin-bottom: 10px; 
-            }
+            .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; margin-bottom: 10px; }
             .action-buttons button { margin: 0; padding: 12px; font-size: 12px; height: 100%; }
             .btn-red { grid-column: span 2; }
-
             #lbl-instruction { margin: 2px 0; min-height: auto; font-size: 11px; }
         }
     </style>
@@ -185,10 +171,11 @@
         <div id="lbl-instruction"></div>
 
         <div class="action-buttons">
-            <button class="btn-purple" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
-            <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR CERCA</button>
-            <button id="btn-cancel" class="btn-gray" style="display:none; grid-column: span 2;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
-            <button class="btn-red" onclick="factoryReset()">🗑 BORRAR COORDENADAS</button>
+            <!-- AGREGADO: disabled al inicio -->
+            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ MANUAL</button>
+            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR</button>
+            <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
+            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR DATOS</button>
         </div>
     </div>
 
@@ -198,7 +185,7 @@
         <div id="touch-pad"></div>
     </div>
 
-    <!-- MENSAJE FLOTANTE (Diseño Premium) -->
+    <!-- OVERLAY -->
     <div id="msg-overlay">
         <div class="loading-card">
             <div class="loading-spinner"></div>
@@ -225,7 +212,7 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
             fenceLayer = L.layerGroup().addTo(map);
             tempLayer = L.layerGroup().addTo(map);
-
+            
             const pad = document.getElementById('touch-pad');
             pad.addEventListener('touchstart', handleInputStart, {passive: false});
             pad.addEventListener('touchmove', handleInputMove, {passive: false});
@@ -235,6 +222,13 @@
             pad.addEventListener('mouseup', handleInputEnd);
         };
 
+        // Función para activar/desactivar botones
+        function setControlsState(enabled) {
+            document.getElementById('btn-manual').disabled = !enabled;
+            document.getElementById('btn-draw').disabled = !enabled;
+            document.getElementById('btn-reset').disabled = !enabled;
+        }
+
         async function connectBLE() {
             if (isConnected) {
                 if(bluetoothDevice && bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
@@ -242,7 +236,7 @@
                 return;
             }
             try {
-                showMsg("Conectando...", "Buscando dispositivo...");
+                showMsg("Conectando...", "Buscando dispositivo ESP32");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: "Geocerca" }],
                     optionalServices: [SERVICE_UUID]
@@ -257,6 +251,7 @@
                 bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
                 isConnected = true;
+                setControlsState(true); // ACTIVAR BOTONES
                 document.getElementById('lbl-connection').innerText = "CONECTADO";
                 document.getElementById('lbl-connection').style.backgroundColor = "#27ae60";
                 document.getElementById('btn-connect').innerText = "DESCONECTAR";
@@ -272,6 +267,7 @@
 
         function onDisconnected() {
             isConnected = false;
+            setControlsState(false); // DESACTIVAR BOTONES
             document.getElementById('lbl-connection').innerText = "DESCONECTADO";
             document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
             document.getElementById('btn-connect').innerText = "📡 CONECTAR BLUETOOTH";
@@ -345,7 +341,7 @@
         }
 
         function startDrawing() {
-            if(!isConnected) return alert("Conecta el Bluetooth primero");
+            // Ya no es necesario alert porque el botón está deshabilitado
             document.getElementById('touch-pad').style.display = 'block';
             document.getElementById('btn-draw').style.display = 'none';
             document.getElementById('btn-cancel').style.display = 'block';
@@ -394,11 +390,11 @@
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
             
-            if(confirm("¿Deseas configurar esta nueva cerca?")) {
+            if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
-                    showMsg("Guardando...", "Actualizando ESP32");
+                    showMsg("Guardando...", "Enviando al ESP32");
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
@@ -408,7 +404,6 @@
         function p1(n){ return n.toFixed(6); }
 
         function configManual() {
-            if (!isConnected) return alert("Conecta primero");
             const val = prompt("Ingresa coordenadas:\nEj: 4.57,-75.64...");
             if (val) {
                 sendCmd("CONFIG");
@@ -421,10 +416,11 @@
         }
 
         function factoryReset() {
-            if (!isConnected) return alert("Conecta primero");
             if(confirm("¿Seguro deseas BORRAR la zona?")) {
                 sendCmd("RESET");
                 fenceLayer.clearLayers();
+                // No reseteamos conexión ni reiniciamos UI para que siga conectado
+                alert("Zona borrada del dispositivo.");
             }
         }
 
