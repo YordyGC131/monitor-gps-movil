@@ -1,6 +1,6 @@
 {
-  "name": "Cerca Virtual Tecnoparque",
-  "short_name": "Cerca VirtualTecnoparque",
+  "name": "Geocerca Pro",
+  "short_name": "Geocerca",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#2c3e50",
