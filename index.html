@@ -158,7 +158,7 @@
         </div>
         
         <div class="label-title">CONEXIÓN:</div>
-        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
+        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR DISPOSITIVO MEDIANTE BLUETOOTH</button>
 
         <div class="data-panel">
             <div class="label-title" style="margin:0 0 5px 0; display:block; font-size:9px;">POSICIÓN ACTUAL</div>
@@ -270,7 +270,7 @@
             setControlsState(false); // DESACTIVAR BOTONES
             document.getElementById('lbl-connection').innerText = "DESCONECTADO";
             document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
-            document.getElementById('btn-connect').innerText = "📡 CONECTAR BLUETOOTH";
+            document.getElementById('btn-connect').innerText = "📡 CONECTAR DISPOSITIVO MEDIANTE BLUETOOTH";
             document.getElementById('btn-connect').className = "btn-green";
             document.getElementById('lbl-zone-status').innerText = "---";
             document.getElementById('lbl-zone-status').style.backgroundColor = "#95a5a6";
