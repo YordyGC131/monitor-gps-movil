@@ -158,7 +158,7 @@
         </div>
         
         <div class="label-title">CONEXIÓN:</div>
-        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
+        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR DISPOSITIVO MEDIANTE BLUETOOTH</button>
 
         <div class="data-panel">
             <div class="label-title" style="margin:0 0 5px 0; display:block; font-size:9px;">POSICIÓN ACTUAL</div>
@@ -172,10 +172,10 @@
 
         <div class="action-buttons">
             <!-- AGREGADO: disabled al inicio -->
-            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR</button>
+            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ COORDENADAS MANUALES</button>
+            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR CERCA</button>
             <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
-            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR DATOS</button>
+            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR COORDENADAS</button>
         </div>
     </div>
 
@@ -270,7 +270,7 @@
             setControlsState(false); // DESACTIVAR BOTONES
             document.getElementById('lbl-connection').innerText = "DESCONECTADO";
             document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
-            document.getElementById('btn-connect').innerText = "📡 CONECTAR BLUETOOTH";
+            document.getElementById('btn-connect').innerText = "📡 CONECTAR DISPOSITIVO MEDIANTE BLUTOOTH";
             document.getElementById('btn-connect').className = "btn-green";
             document.getElementById('lbl-zone-status').innerText = "---";
             document.getElementById('lbl-zone-status').style.backgroundColor = "#95a5a6";
@@ -390,7 +390,7 @@
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
             
-            if(confirm("¿Guardar esta zona?")) {
+            if(confirm("¿Deseas configurar esta nueva cerca?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
@@ -420,7 +420,7 @@
                 sendCmd("RESET");
                 fenceLayer.clearLayers();
                 // No reseteamos conexión ni reiniciamos UI para que siga conectado
-                alert("Zona borrada del dispositivo.");
+                alert("Zona borrada del mapa.");
             }
         }
 
