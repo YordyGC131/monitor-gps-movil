@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cerca Virtual BLE - App</title>
+    <title>Geocerca BLE - UI Pro</title>
     
     <!-- CONFIGURACIÓN PWA (MODO APK) -->
     <link rel="manifest" href="manifest.json">
@@ -26,7 +26,7 @@
             font-family: 'Segoe UI', Arial, sans-serif; 
             background: #2c3e50; 
             overflow: hidden; 
-            overscroll-behavior: none; 
+            overscroll-behavior: none; /* Evita rebote en movil */
         }
         
         /* --- SIDEBAR (PC) --- */
@@ -66,15 +66,6 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         button:active { transform: scale(0.98); }
-        
-        /* Estilo para botones deshabilitados */
-        button:disabled {
-            background-color: #555 !important;
-            color: #aaa !important;
-            cursor: not-allowed;
-            opacity: 0.6;
-            box-shadow: none;
-        }
 
         .btn-green { background-color: #27ae60; }
         .btn-purple { background-color: #8e44ad; }
@@ -128,20 +119,42 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes popUp { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        /* RESPONSIVE */
+        /* =========================================
+           DISEÑO MÓVIL CORREGIDO (PANEL VISIBLE)
+           ========================================= */
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; } 
-            #sidebar { width: 100%; height: auto; max-height: 50%; padding: 10px; border-top: 3px solid #e67e22; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); gap: 3px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+            #sidebar {
+                width: 100%; 
+                height: auto; 
+                max-height: 50%; 
+                padding: 8px;
+                border-top: 3px solid #e67e22;
+                box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
+                gap: 3px;
+                overflow-y: auto; 
+                -webkit-overflow-scrolling: touch;
+            }
+
             #map-container { flex: 1; min-height: 50%; }
+
             h2 { display: none; } .label-title { display: none; }
+
             #btn-connect { margin: 0; padding: 12px; font-size: 13px; }
             .status-container { margin: 0; gap: 5px; }
             .status-box { padding: 6px; font-size: 11px; margin: 0; }
+
             .data-panel { padding: 4px; display: flex; justify-content: space-around; margin: 0; }
             .coord-text { font-size: 11px; }
-            .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; margin-bottom: 10px; }
+
+            .action-buttons { 
+                display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px;
+                margin-bottom: 10px; 
+            }
             .action-buttons button { margin: 0; padding: 12px; font-size: 12px; height: 100%; }
             .btn-red { grid-column: span 2; }
+
             #lbl-instruction { margin: 2px 0; min-height: auto; font-size: 11px; }
         }
     </style>
@@ -158,7 +171,7 @@
         </div>
         
         <div class="label-title">CONEXIÓN:</div>
-        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR DISPOSITIVO MEDIANTE BLUETOOTH</button>
+        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
 
         <div class="data-panel">
             <div class="label-title" style="margin:0 0 5px 0; display:block; font-size:9px;">POSICIÓN ACTUAL</div>
@@ -231,8 +244,15 @@
 
         async function connectBLE() {
             if (isConnected) {
-                if(bluetoothDevice && bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
-                onDisconnected();
+                // Si ya está conectado y le dan clic: DESCONECTAR
+                if(bluetoothDevice && bluetoothDevice.gatt.connected) {
+                    bluetoothDevice.gatt.disconnect();
+                    // El evento 'gattserverdisconnected' se disparará y llamará a onDisconnected()
+                    // así que NO lo llamamos aquí manualmente para evitar el doble mensaje.
+                } else {
+                    // Si por error de lógica parecía conectado pero no lo estaba
+                    onDisconnected();
+                }
                 return;
             }
             try {
@@ -266,11 +286,12 @@
         }
 
         function onDisconnected() {
+            // Esta función solo se ejecuta por el evento del navegador
             isConnected = false;
             setControlsState(false); // DESACTIVAR BOTONES
             document.getElementById('lbl-connection').innerText = "DESCONECTADO";
             document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
-            document.getElementById('btn-connect').innerText = "📡 CONECTAR DISPOSITIVO MEDIANTE BLUTOOTH";
+            document.getElementById('btn-connect').innerText = "📡 CONECTAR BLUETOOTH";
             document.getElementById('btn-connect').className = "btn-green";
             document.getElementById('lbl-zone-status').innerText = "---";
             document.getElementById('lbl-zone-status').style.backgroundColor = "#95a5a6";
@@ -341,7 +362,7 @@
         }
 
         function startDrawing() {
-            // Ya no es necesario alert porque el botón está deshabilitado
+            // Ya no es necesario alert porque el botón está deshabilitado si no hay conexión
             document.getElementById('touch-pad').style.display = 'block';
             document.getElementById('btn-draw').style.display = 'none';
             document.getElementById('btn-cancel').style.display = 'block';
@@ -390,7 +411,7 @@
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
             
-            if(confirm("¿Deseas configurar esta nueva cerca?")) {
+            if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
@@ -404,6 +425,7 @@
         function p1(n){ return n.toFixed(6); }
 
         function configManual() {
+            // El botón está deshabilitado si no hay conexión, no hace falta alert
             const val = prompt("Ingresa coordenadas:\nEj: 4.57,-75.64...");
             if (val) {
                 sendCmd("CONFIG");
@@ -416,11 +438,11 @@
         }
 
         function factoryReset() {
+            // El botón está deshabilitado si no hay conexión
             if(confirm("¿Seguro deseas BORRAR la zona?")) {
                 sendCmd("RESET");
                 fenceLayer.clearLayers();
-                // No reseteamos conexión ni reiniciamos UI para que siga conectado
-                alert("Zona borrada del mapa.");
+                alert("Zona borrada del dispositivo.");
             }
         }
 
