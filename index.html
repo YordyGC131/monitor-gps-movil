@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - Mobile Fix</title>
+    <title>Geocerca BLE - App</title>
+    
+    <!-- CONFIGURACIÓN PWA (MODO APK) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/684/684908.png">
     
     <!-- Librería de Mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,21 +19,18 @@
     <style>
         /* --- ESTILOS GENERALES --- */
         body { 
-            margin: 0; 
-            display: flex; 
-            /* En PC: Izquierda-Derecha. En Móvil se cambia abajo */
-            flex-direction: row; 
+            margin: 0; display: flex; 
+            flex-direction: row; /* PC: Izquierda-Derecha */
             height: 100vh; 
-            /* Fix para móviles modernos: usa la altura real visible */
-            height: 100dvh; 
             font-family: 'Segoe UI', Arial, sans-serif; 
             background: #2c3e50; 
             overflow: hidden; 
+            overscroll-behavior: none; /* Evita rebote en movil */
         }
         
         /* --- SIDEBAR (PC) --- */
         #sidebar {
-            width: 320px; background-color: #2c3e50; color: white;
+            width: 300px; background-color: #2c3e50; color: white;
             display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
             box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 2000; flex-shrink: 0;
             overflow-y: auto; border-right: 1px solid #444;
@@ -34,7 +38,7 @@
 
         h2 { text-align: center; margin: 0 0 15px 0; font-size: 18px; color: #ecf0f1; letter-spacing: 1px; border-bottom: 1px solid #444; padding-bottom: 10px; }
         
-        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 10px; font-weight: bold; text-transform: uppercase; }
+        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; text-transform: uppercase; }
         
         /* Estados */
         .status-container { display: flex; gap: 5px; width: 100%; }
@@ -52,7 +56,7 @@
             font-size: 12px; font-weight: bold;
         }
 
-        /* Botones PC (Columna) */
+        /* Botones */
         .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
         
         button {
@@ -70,7 +74,9 @@
 
         /* --- MAPA --- */
         #map-container { flex-grow: 1; position: relative; height: 100%; }
-        #map { width: 100%; height: 100%; }
+        #map { width: 100%; height: 100%; touch-action: none; } /* CRÍTICO: touch-action none */
+        
+        /* VIDRIO (TOUCH PAD) */
         #touch-pad {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 3000; background: rgba(0,0,0,0); display: none;
@@ -86,53 +92,41 @@
         }
 
         /* =========================================
-           DISEÑO MÓVIL CORREGIDO (TODO VISIBLE)
+           DISEÑO MÓVIL (TODO VISIBLE)
            ========================================= */
         @media (max-width: 768px) {
-            /* Invertir orden: Mapa arriba, Panel abajo */
             body { flex-direction: column-reverse; } 
 
-            /* Ajuste del Panel para que quepa todo */
             #sidebar {
                 width: 100%; 
-                height: auto; /* Altura automática */
-                max-height: 50%; /* No usar más de la mitad de la pantalla */
+                height: auto; 
+                max-height: 50%; 
                 padding: 8px;
                 border-top: 3px solid #e67e22;
                 box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
                 gap: 3px;
             }
 
-            /* El mapa usa todo el espacio que sobre arriba */
             #map-container { flex: 1; }
+            
+            h2, .label-title { display: none; }
 
-            /* Ocultar elementos decorativos para ganar espacio */
-            h2 { display: none; }
-            .label-title { display: none; }
-
-            /* Ajustar botón conectar */
-            #btn-connect { margin: 0; padding: 12px; font-size: 13px; }
-
-            /* Estados en línea */
+            #btn-connect { margin: 0; padding: 10px; font-size: 13px; }
             .status-container { margin: 0; gap: 5px; }
-            .status-box { padding: 6px; font-size: 11px; margin: 0; }
+            .status-box { padding: 5px; font-size: 11px; margin: 0; }
 
-            /* Coordenadas compactas */
             .data-panel { padding: 4px; display: flex; justify-content: space-around; margin: 0; }
             .coord-text { font-size: 11px; }
 
-            /* BOTONES EN CUADRÍCULA (Clave para que se vean todos) */
+            /* GRID BOTONES */
             .action-buttons { 
                 display: grid; 
-                grid-template-columns: 1fr 1fr; /* Dos columnas */
+                grid-template-columns: 1fr 1fr; 
                 gap: 6px; 
                 margin-top: 5px;
             }
             
-            /* Botones más compactos */
             .action-buttons button { margin: 0; padding: 10px; font-size: 11px; height: 100%; }
-            
-            /* El botón de borrar ocupa todo el ancho al final */
             .btn-red { grid-column: span 2; }
 
             #lbl-instruction { margin: 2px 0; min-height: auto; font-size: 11px; }
@@ -145,10 +139,10 @@
     <div id="sidebar">
         <h2>CERCA VIRTUAL</h2>
         
-        <!-- Botón Conectar (Arriba para acceso rápido en móvil) -->
+        <!-- Botón Conectar -->
         <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
 
-        <!-- Estado (Fila) -->
+        <!-- Estado -->
         <div class="status-container">
             <div id="lbl-connection" class="status-box">DESCONECTADO</div>
             <div id="lbl-zone-status" class="status-box">---</div>
@@ -172,7 +166,7 @@
         <div class="action-buttons">
             <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
             <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR</button>
-            <button id="btn-cancel" class="btn-gray" style="display:none; grid-column: span 2;" onclick="stopDrawing()">❌ CANCELAR</button>
+            <button id="btn-cancel" class="btn-gray" style="display:none; grid-column: span 2;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
             <button class="btn-red" onclick="factoryReset()">🗑 BORRAR DATOS</button>
         </div>
     </div>
@@ -187,6 +181,7 @@
     <div id="msg-overlay">Cargando...</div>
 
     <script>
+        // --- UUIDs BLE ---
         const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
         const RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
         const TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
@@ -200,14 +195,13 @@
 
         window.onload = () => {
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
-            L.control.zoom({ position: 'topright' }).addTo(map); // Zoom arriba para no estorbar en movil
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: 'OSM'
-            }).addTo(map);
+            L.control.zoom({ position: 'topright' }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
             
             fenceLayer = L.layerGroup().addTo(map);
             tempLayer = L.layerGroup().addTo(map);
 
+            // EVENTOS DE DIBUJO SOBRE EL VIDRIO
             const pad = document.getElementById('touch-pad');
             pad.addEventListener('touchstart', handleInputStart, {passive: false});
             pad.addEventListener('touchmove', handleInputMove, {passive: false});
@@ -301,7 +295,6 @@
         function updateUI(data) {
             document.getElementById('val-lat').innerText = `Lat: ${data.lat.toFixed(5)}`;
             document.getElementById('val-lon').innerText = `Lon: ${data.lon.toFixed(5)}`;
-            
             const zoneBadge = document.getElementById('lbl-zone-status');
             if(data.status === "INSIDE") {
                 zoneBadge.innerText = "DENTRO (SEGURO)"; zoneBadge.style.backgroundColor = "#27ae60";
@@ -310,7 +303,6 @@
             } else {
                 zoneBadge.innerText = "BUSCANDO..."; zoneBadge.style.backgroundColor = "#3498db";
             }
-
             if(!myMarker) {
                 myMarker = L.marker([data.lat, data.lon]).addTo(map);
             } else {
@@ -329,17 +321,18 @@
             if(latlngs.length > 0) map.fitBounds(L.polygon(latlngs).getBounds());
         }
 
+        // --- DIBUJO PRECISO ---
         function startDrawing() {
             if(!isConnected) return alert("Conecta el Bluetooth primero");
             document.getElementById('touch-pad').style.display = 'block';
             document.getElementById('btn-draw').style.display = 'none';
-            document.getElementById('btn-cancel').style.display = 'inline-block';
+            document.getElementById('btn-cancel').style.display = 'block';
             document.getElementById('lbl-instruction').innerText = "ARRASTRA EN EL MAPA";
         }
 
         function stopDrawing() {
             document.getElementById('touch-pad').style.display = 'none';
-            document.getElementById('btn-draw').style.display = 'inline-block';
+            document.getElementById('btn-draw').style.display = 'block';
             document.getElementById('btn-cancel').style.display = 'none';
             document.getElementById('lbl-instruction').innerText = "";
             tempLayer.clearLayers();
@@ -353,8 +346,7 @@
             } else {
                 clientX = e.clientX; clientY = e.clientY;
             }
-            const mapContainer = document.getElementById('map');
-            const rect = mapContainer.getBoundingClientRect();
+            const rect = document.getElementById('map').getBoundingClientRect();
             return map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
         }
 
@@ -368,18 +360,15 @@
         function handleInputMove(e) {
             if(e.cancelable) e.preventDefault();
             if (!startLatLng || !tempRect) return;
-            const currentLatLng = getMapCoords(e);
-            tempRect.setBounds([startLatLng, currentLatLng]);
+            tempRect.setBounds([startLatLng, getMapCoords(e)]);
         }
 
         function handleInputEnd(e) {
             if(e.cancelable) e.preventDefault();
             if (!startLatLng || !tempRect) return;
-            
             const b = tempRect.getBounds();
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
-            
             if(confirm("¿Guardar esta zona?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
@@ -395,7 +384,7 @@
 
         function configManual() {
             if (!isConnected) return alert("Conecta primero");
-            const val = prompt("Ingresa coordenadas:\nLat1,Lon1,Lat2,Lon2...");
+            const val = prompt("Ingresa coordenadas:\nEj: 4.57,-75.64...");
             if (val) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
@@ -408,7 +397,7 @@
 
         function factoryReset() {
             if (!isConnected) return alert("Conecta primero");
-            if(confirm("¿Borrar todo?")) {
+            if(confirm("¿Seguro deseas BORRAR la zona?")) {
                 sendCmd("RESET");
                 fenceLayer.clearLayers();
             }
@@ -419,7 +408,6 @@
             el.innerText = txt; el.style.display = 'block';
         }
         function hideMsg() { document.getElementById('msg-overlay').style.display = 'none'; }
-
     </script>
 </body>
 </html>
