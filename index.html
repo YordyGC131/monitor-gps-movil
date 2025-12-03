@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cerca virtual  - App</title>
+    <title>Cerca virtual Tecnoparque Quindío  - App</title>
     
     <!-- CONFIGURACIÓN PWA (MODO APK) -->
     <link rel="manifest" href="manifest.json">
@@ -150,7 +150,7 @@
 
     <!-- PANEL DE CONTROL -->
     <div id="sidebar">
-        <h2>CERCA VIRTUAL</h2>
+        <h2>CERCA VIRTUAL TECNOPARQUE QUINDIO</h2>
         
         <div class="status-container">
             <div id="lbl-connection" class="status-box">DESCONECTADO</div>
@@ -238,7 +238,7 @@
             try {
                 showMsg("Conectando...", "Buscando dispositivo ESP32");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: "Cerca Virtual" }],
+                    filters: [{ namePrefix: "Cerca Virtual Tecnoparque Quindío" }],
                     optionalServices: [SERVICE_UUID]
                 });
                 const server = await bluetoothDevice.gatt.connect();
