@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geocerca BLE - UI Pro</title>
+    <title>Geocerca BLE - App Final</title>
+    
+    <!-- CONFIGURACIÓN MODO APP (PWA) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/684/684908.png">
     
     <!-- Librería de Mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,13 +19,19 @@
     <style>
         /* --- ESTILOS GENERALES --- */
         body { 
-            margin: 0; display: flex; flex-direction: row; height: 100vh; 
-            font-family: 'Segoe UI', Arial, sans-serif; background: #2c3e50; overflow: hidden; 
+            margin: 0; display: flex; 
+            flex-direction: row; /* PC: Lado a lado */
+            height: 100vh; 
+            /* Fix para móviles modernos */
+            height: 100dvh; 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: #2c3e50; 
+            overflow: hidden; 
         }
         
-        /* --- SIDEBAR --- */
+        /* --- SIDEBAR (PC) --- */
         #sidebar {
-            width: 300px; background-color: #2c3e50; color: white;
+            width: 320px; background-color: #2c3e50; color: white;
             display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
             box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 2000; flex-shrink: 0;
             overflow-y: auto; border-right: 1px solid #444;
@@ -28,16 +41,23 @@
         
         .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; text-transform: uppercase; }
         
+        /* Estados */
         .status-container { display: flex; gap: 5px; width: 100%; }
         .status-box { padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 12px; flex: 1; }
         #lbl-connection { background-color: #c0392b; color: white; transition: 0.3s; } 
         #lbl-zone-status { background-color: #95a5a6; color: white; transition: 0.3s; }
 
+        /* Coordenadas */
         .data-panel { background-color: #34495e; padding: 8px; border-radius: 4px; margin-top: 5px; text-align: center; border: 1px solid #4a6278; }
         .coord-text { font-family: 'Courier New', monospace; font-size: 13px; color: #3498db; font-weight: bold; display: block; }
 
-        #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; font-weight: bold; }
+        /* Instrucciones */
+        #lbl-instruction {
+            color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; 
+            font-size: 12px; font-weight: bold;
+        }
 
+        /* Botones */
         .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
         
         button {
@@ -45,7 +65,7 @@
             cursor: pointer; font-size: 13px; width: 100%; transition: 0.2s;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        button:active { transform: scale(0.95); }
+        button:active { transform: scale(0.98); }
 
         .btn-green { background-color: #27ae60; }
         .btn-purple { background-color: #8e44ad; }
@@ -62,58 +82,72 @@
             touch-action: none; cursor: crosshair;
         }
 
-        /* =========================================
-           NUEVO DISEÑO DE PANTALLA DE CARGA
-           ========================================= */
+        /* --- OVERLAY --- */
         #msg-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(33, 43, 54, 0.85); /* Fondo oscuro elegante */
-            backdrop-filter: blur(4px); /* Efecto borroso moderno */
-            z-index: 5000; 
-            display: none; 
-            flex-direction: column; justify-content: center; align-items: center;
-            transition: opacity 0.3s ease;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85); color: white; padding: 20px 30px; border-radius: 10px;
+            display: none; z-index: 4000; text-align: center; font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }
-
-        .loading-card {
-            background: white;
-            padding: 25px 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-            text-align: center;
-            animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            max-width: 80%;
+        .spinner {
+            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 0 auto 10px auto;
         }
-
-        .loading-spinner {
-            width: 50px; height: 50px;
-            border: 5px solid #ecf0f1;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 15px auto;
-        }
-
-        #overlay-title { font-size: 18px; color: #2c3e50; margin: 0 0 5px 0; font-weight: bold; }
-        #overlay-desc { font-size: 13px; color: #7f8c8d; margin: 0; }
-
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes popUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        /* --- RESPONSIVE --- */
+        /* =========================================
+           DISEÑO MÓVIL CORREGIDO (PANEL VISIBLE)
+           ========================================= */
         @media (max-width: 768px) {
-            body { flex-direction: column-reverse; } 
-            #sidebar { width: 100%; height: auto; max-height: 45vh; padding: 8px; border-top: 3px solid #e67e22; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); gap: 3px; }
-            #map-container { flex: 1; }
-            h2, .label-title { display: none; }
+            body { flex-direction: column-reverse; } /* Mapa Arriba, Panel Abajo */
+
+            /* Panel inferior INTELIGENTE */
+            #sidebar {
+                width: 100%; 
+                height: auto; /* Altura automática */
+                max-height: 50%; /* Nunca ocupará más de la mitad */
+                padding: 10px;
+                border-top: 3px solid #e67e22;
+                box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
+                gap: 5px;
+                
+                /* CRÍTICO: Si los botones no caben, permite scroll DENTRO del panel */
+                overflow-y: auto; 
+                -webkit-overflow-scrolling: touch;
+            }
+
+            /* Mapa ocupa el resto */
+            #map-container { flex: 1; min-height: 50%; }
+
+            /* Elementos Ocultos en Móvil para ganar espacio */
+            h2 { display: none; }
+            .label-title { display: none; }
+
+            /* Ajustar botón conectar */
             #btn-connect { margin: 0; padding: 12px; font-size: 13px; }
+
+            /* Estados en línea */
             .status-container { margin: 0; gap: 5px; }
             .status-box { padding: 6px; font-size: 11px; margin: 0; }
+
+            /* Coordenadas compactas */
             .data-panel { padding: 4px; display: flex; justify-content: space-around; margin: 0; }
             .coord-text { font-size: 11px; }
-            .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; }
-            .action-buttons button { margin: 0; padding: 10px; font-size: 11px; height: 100%; }
+
+            /* BOTONES EN CUADRÍCULA */
+            .action-buttons { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; 
+                gap: 8px; 
+                margin-top: 5px;
+                margin-bottom: 10px; /* Espacio extra abajo para dedos */
+            }
+            
+            .action-buttons button { margin: 0; padding: 12px; font-size: 12px; height: 100%; }
+            
             .btn-red { grid-column: span 2; }
+
             #lbl-instruction { margin: 2px 0; min-height: auto; font-size: 11px; }
         }
     </style>
@@ -123,12 +157,19 @@
     <!-- PANEL DE CONTROL -->
     <div id="sidebar">
         <h2>CERCA VIRTUAL</h2>
+        
+        <!-- Botón Conectar -->
+        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
+
+        <!-- Estado -->
         <div class="status-container">
             <div id="lbl-connection" class="status-box">DESCONECTADO</div>
             <div id="lbl-zone-status" class="status-box">---</div>
         </div>
-        <div class="label-title">CONEXIÓN:</div>
-        <button id="btn-connect" class="btn-green" onclick="connectBLE()">📡 CONECTAR BLUETOOTH</button>
+        
+        <div class="label-title">COORDENADAS:</div>
+        
+        <!-- Coordenadas -->
         <div class="data-panel">
             <div class="label-title" style="margin:0 0 5px 0; display:block; font-size:9px;">POSICIÓN ACTUAL</div>
             <div style="display:flex; justify-content: space-around;">
@@ -136,7 +177,11 @@
                 <span id="val-lon" class="coord-text">Lon: 0.00000</span>
             </div>
         </div>
+
+        <!-- Instrucciones -->
         <div id="lbl-instruction"></div>
+
+        <!-- Botones de Acción -->
         <div class="action-buttons">
             <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
             <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR</button>
@@ -151,13 +196,11 @@
         <div id="touch-pad"></div>
     </div>
 
-    <!-- MENSAJE FLOTANTE (Diseño Mejorado) -->
+    <!-- MENSAJE FLOTANTE -->
     <div id="msg-overlay">
-        <div class="loading-card">
-            <div class="loading-spinner"></div>
-            <div id="overlay-title">Cargando...</div>
-            <div id="overlay-desc">Por favor espere</div>
-        </div>
+        <div class="spinner"></div>
+        <div id="overlay-title" style="font-size:16px;">Cargando...</div>
+        <div id="overlay-desc" style="font-size:12px; color:#ccc;">Espere respuesta...</div>
     </div>
 
     <script>
@@ -176,8 +219,10 @@
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
             L.control.zoom({ position: 'topright' }).addTo(map);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
+            
             fenceLayer = L.layerGroup().addTo(map);
             tempLayer = L.layerGroup().addTo(map);
+
             const pad = document.getElementById('touch-pad');
             pad.addEventListener('touchstart', handleInputStart, {passive: false});
             pad.addEventListener('touchmove', handleInputMove, {passive: false});
@@ -194,7 +239,7 @@
                 return;
             }
             try {
-                showMsg("Conectando...", "Buscando dispositivo ESP32");
+                showMsg("Buscando ESP32...");
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: "Geocerca" }],
                     optionalServices: [SERVICE_UUID]
@@ -216,6 +261,7 @@
                 
                 hideMsg();
                 setTimeout(() => sendCmd("GEOJSON"), 500);
+
             } catch (error) {
                 hideMsg();
                 if(!error.toString().includes("cancelled")) alert("Error BLE: " + error);
@@ -350,7 +396,7 @@
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
-                    showMsg("Guardando...", "Enviando al ESP32");
+                    showMsg("Guardando...");
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
@@ -361,12 +407,12 @@
 
         function configManual() {
             if (!isConnected) return alert("Conecta primero");
-            const val = prompt("Ingresa coordenadas:\nEj: 4.57,-75.64...");
+            const val = prompt("Ingresa coordenadas:\nLat1,Lon1,Lat2,Lon2...");
             if (val) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(val);
-                    showMsg("Guardando...", "Procesando datos");
+                    showMsg("Guardando...");
                     setTimeout(() => sendCmd("GEOJSON"), 3000);
                 }, 500);
             }
