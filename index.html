@@ -172,10 +172,10 @@
 
         <div class="action-buttons">
             <!-- AGREGADO: disabled al inicio -->
-            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR</button>
+            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ COORDENADAS MANUALES</button>
+            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR CERCA</button>
             <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
-            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR DATOS</button>
+            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR COORDENADAS</button>
         </div>
     </div>
 
@@ -320,7 +320,7 @@
             } else if(data.status === "ALARM") {
                 zoneBadge.innerText = "!!! ALARMA !!!"; zoneBadge.style.backgroundColor = "#c0392b";
             } else {
-                zoneBadge.innerText = "BUSCANDO..."; zoneBadge.style.backgroundColor = "#3498db";
+                zoneBadge.innerText = "SIN COORDENADAS..."; zoneBadge.style.backgroundColor = "#3498db";
             }
             if(!myMarker) {
                 myMarker = L.marker([data.lat, data.lon]).addTo(map);
@@ -390,7 +390,7 @@
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
             
-            if(confirm("¿Guardar esta zona?")) {
+            if(confirm("¿Deseas configurar esta nueva cerca?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
@@ -420,7 +420,7 @@
                 sendCmd("RESET");
                 fenceLayer.clearLayers();
                 // No reseteamos conexión ni reiniciamos UI para que siga conectado
-                alert("Zona borrada del dispositivo.");
+                alert("Zona borrada del Mapa.");
             }
         }
 
