@@ -185,10 +185,10 @@
         <div id="lbl-instruction"></div>
 
         <div class="action-buttons">
-            <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR</button>
+            <button class="btn-purple" onclick="configManual()">⚙ COORDENADAS MANUALES</button>
+            <button id="btn-draw" class="btn-orange" onclick="startDrawing()">✏ DIBUJAR CERCA</button>
             <button id="btn-cancel" class="btn-gray" style="display:none; grid-column: span 2;" onclick="stopDrawing()">❌ CANCELAR DIBUJO</button>
-            <button class="btn-red" onclick="factoryReset()">🗑 BORRAR DATOS</button>
+            <button class="btn-red" onclick="factoryReset()">🗑 BORRAR COORDENADAS</button>
         </div>
     </div>
 
@@ -394,7 +394,7 @@
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = `${p1(ne.lat)},${p1(sw.lng)},${p1(ne.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(ne.lng)},${p1(sw.lat)},${p1(sw.lng)}`;
             
-            if(confirm("¿Guardar esta zona?")) {
+            if(confirm("¿Deseas configurar esta nueva cerca?")) {
                 sendCmd("CONFIG");
                 setTimeout(() => {
                     sendCmd(str);
