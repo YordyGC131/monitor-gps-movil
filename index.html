@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Launcher Geocerca WiFi</title>
+    <title>Launcher Geocerca</title>
     <style>
         body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
         .btn-launch { 
@@ -12,7 +12,7 @@
             cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: 0.2s;
         }
         .btn-launch:active { transform: scale(0.95); }
-        .note { margin-top: 20px; color: #95a5a6; font-size: 14px; text-align: center; max-width: 80%; line-height: 1.5; }
+        .note { margin-top: 20px; color: #95a5a6; font-size: 14px; text-align: center; max-width: 90%; line-height: 1.5; }
         b { color: #2ecc71; }
     </style>
 </head>
@@ -20,16 +20,14 @@
 
     <button class="btn-launch" onclick="launchApp()">🚀 ABRIR MONITOR GPS</button>
     <p class="note">
-        1. Conéctate a la red WiFi: <b>GEOCERCA_WIFI</b> (Clave: 12345678)<br>
+        1. Conéctate al WiFi: <b>GEOCERCA_SETUP</b> (Clave: 12345678)<br>
         2. Presiona el botón para abrir la App.
     </p>
 
     <script>
         function launchApp() {
-            // Abrir Popup
-            const win = window.open("", "GeocercaWin", "width=1000,height=700,menubar=no,toolbar=no,location=no,status=no");
+            const win = window.open("", "GeocercaWin", "width=1200,height=750,menubar=no,toolbar=no,location=no,status=no");
             
-            // ESCRIBIMOS LA APP COMPLETA DENTRO DEL POPUP
             win.document.write(`
 <!DOCTYPE html>
 <html lang="es">
@@ -41,7 +39,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
     <style>
         body { margin: 0; display: flex; flex-direction: row; height: 100vh; height: 100dvh; font-family: 'Segoe UI', Arial, sans-serif; background: #2c3e50; overflow: hidden; }
-        
         #sidebar { width: 300px; background-color: #2c3e50; color: white; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 2000; flex-shrink: 0; overflow-y: auto; border-right: 1px solid #444; }
         h2 { text-align: center; margin: 0 0 15px 0; font-size: 18px; color: #ecf0f1; letter-spacing: 1px; border-bottom: 1px solid #444; padding-bottom: 10px; }
         .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; text-transform: uppercase; }
@@ -54,9 +51,8 @@
         #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; font-weight: bold; }
         .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
         button { padding: 12px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; font-size: 13px; width: 100%; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        button:active { transform: scale(0.98); }
         button:disabled { background-color: #555 !important; color: #aaa !important; cursor: not-allowed; opacity: 0.6; box-shadow: none; }
-        .btn-green { background-color: #27ae60; } .btn-purple { background-color: #8e44ad; } .btn-orange { background-color: #d35400; } .btn-red { background-color: #c0392b; } .btn-gray { background-color: #7f8c8d; }
+        .btn-green { background-color: #27ae60; } .btn-purple { background-color: #8e44ad; } .btn-orange { background-color: #d35400; } .btn-red { background-color: #c0392b; } .btn-gray { background-color: #7f8c8d; } .btn-blue { background-color: #2980b9; }
 
         #map-container { flex-grow: 1; position: relative; height: 100%; }
         #map { width: 100%; height: 100%; }
@@ -69,6 +65,16 @@
         #overlay-desc { font-size: 14px; color: #7f8c8d; margin: 0; font-weight: 500; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes popUp { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* MODAL WIFI */
+        #wifi-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 6000; display: none; justify-content: center; align-items: center; }
+        .wifi-list-box { background: #2c3e50; width: 90%; max-width: 400px; max-height: 80vh; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.7); border: 1px solid #444; }
+        .wifi-header { padding: 15px; background: #34495e; color: white; text-align: center; font-weight: bold; font-size: 16px; border-bottom: 1px solid #444; }
+        .wifi-content { overflow-y: auto; flex-grow: 1; padding: 10px; }
+        .wifi-item { padding: 12px; border-bottom: 1px solid #444; color: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+        .wifi-item:hover { background: #2980b9; }
+        .wifi-rssi { font-size: 11px; color: #bdc3c7; background: #222; padding: 3px 6px; border-radius: 4px; }
+        .wifi-footer { padding: 10px; background: #34495e; text-align: center;}
 
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; } 
@@ -104,6 +110,7 @@
         </div>
         <div id="lbl-instruction"></div>
         <div class="action-buttons">
+            <button id="btn-wifi" class="btn-blue" onclick="scanNetworks()" disabled>🔍 BUSCAR REDES</button>
             <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ MANUAL</button>
             <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR</button>
             <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="stopDrawing()">❌ CANCELAR</button>
@@ -111,9 +118,24 @@
         </div>
     </div>
     <div id="map-container"><div id="map"></div><div id="touch-pad"></div></div>
+    
+    <!-- CARGA -->
     <div id="msg-overlay"><div class="loading-card"><div class="loading-spinner"></div><div id="overlay-title">Cargando...</div><div id="overlay-desc">Por favor espere</div></div></div>
+
+    <!-- MODAL LISTA WIFI -->
+    <div id="wifi-modal">
+        <div class="wifi-list-box">
+            <div class="wifi-header">SELECCIONA TU RED</div>
+            <div id="wifi-container" class="wifi-content">Escaneando...</div>
+            <div class="wifi-footer">
+                <button class="btn-red" onclick="closeWifiModal()">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        let socket, map, fenceLayer, markersLayer, myMarker;
+        let socket;
+        let map, fenceLayer, markersLayer, myMarker;
         let isConnected = false, startLatLng = null, tempRect = null;
 
         window.onload = () => {
@@ -121,6 +143,7 @@
             L.control.zoom({ position: 'topright' }).addTo(map);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
             fenceLayer = L.layerGroup().addTo(map); tempLayer = L.layerGroup().addTo(map);
+            
             const pad = document.getElementById('touch-pad');
             pad.addEventListener('touchstart', handleInputStart, {passive: false});
             pad.addEventListener('touchmove', handleInputMove, {passive: false});
@@ -134,6 +157,7 @@
         };
 
         function setControlsState(enabled) {
+            document.getElementById('btn-wifi').disabled = !enabled;
             document.getElementById('btn-manual').disabled = !enabled;
             document.getElementById('btn-draw').disabled = !enabled;
             document.getElementById('btn-reset').disabled = !enabled;
@@ -159,7 +183,7 @@
             };
             socket.onmessage = function(event) { processMsg(event.data); };
             socket.onclose = function() { onDisconnected(); };
-            socket.onerror = function() { hideMsg(); alert("Error: Conéctate al WiFi 'GEOCERCA_WIFI'"); };
+            socket.onerror = function() { hideMsg(); alert("Error: Conéctate al WiFi 'GEOCERCA_SETUP'"); };
         }
 
         function onDisconnected() {
@@ -167,7 +191,7 @@
             setControlsState(false);
             document.getElementById('lbl-connection').innerText = "DESCONECTADO";
             document.getElementById('lbl-connection').style.backgroundColor = "#c0392b";
-            document.getElementById('btn-connect').innerText = "📡 CONECTAR WIFI";
+            document.getElementById('btn-connect').innerText = "📡 CONECTAR A ESP32";
             document.getElementById('btn-connect').className = "btn-green";
             document.getElementById('lbl-zone-status').innerText = "---";
             document.getElementById('lbl-zone-status').style.backgroundColor = "#95a5a6";
@@ -179,9 +203,43 @@
                 try { updateUI(JSON.parse(msg.replace("DATA:", ""))); } catch(e){}
             } else if (msg.startsWith("GEOJSON:")) {
                 try { drawFence(msg.replace("GEOJSON:", "")); } catch(e){}
+            } else if (msg.startsWith("NETWORKS:")) {
+                showWifiList(msg.replace("NETWORKS:", ""));
+                hideMsg();
+            } else if (msg.startsWith("MSG:")) {
+                alert(msg.replace("MSG:", ""));
             }
         }
 
+        // --- GESTOR DE REDES ---
+        function scanNetworks() {
+            showMsg("Escaneando...", "Buscando redes cercanas...");
+            socket.send("SCAN");
+        }
+
+        function showWifiList(jsonStr) {
+            const list = JSON.parse(jsonStr);
+            const container = document.getElementById("wifi-container");
+            container.innerHTML = "";
+            if(list.length === 0) container.innerHTML = "<p style='text-align:center;color:#ccc'>No se encontraron redes</p>";
+            
+            list.forEach(net => {
+                const div = document.createElement("div"); div.className = "wifi-item";
+                div.innerHTML = \`<span>\${net.ssid}</span> <span class="wifi-rssi">\${net.rssi} dBm</span>\`;
+                div.onclick = () => selectNetwork(net.ssid); container.appendChild(div);
+            });
+            document.getElementById("wifi-modal").style.display = "flex";
+        }
+
+        function selectNetwork(ssid) {
+            const pass = prompt("Contraseña para: " + ssid);
+            if(pass !== null) { 
+                socket.send("SET_WIFI:" + ssid + "," + pass); 
+                closeWifiModal(); 
+                showMsg("Guardando...", "El ESP32 se reiniciará en la red " + ssid);
+            }
+        }
+        function closeWifiModal() { document.getElementById("wifi-modal").style.display = "none"; }
         function sendCmd(cmd) { if(socket && socket.readyState === WebSocket.OPEN) socket.send(cmd); }
 
         function updateUI(data) {
@@ -244,9 +302,14 @@
             const b = tempRect.getBounds();
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = ne.lat.toFixed(6) + "," + sw.lng.toFixed(6) + "," + ne.lat.toFixed(6) + "," + ne.lng.toFixed(6) + "," + sw.lat.toFixed(6) + "," + ne.lng.toFixed(6) + "," + sw.lat.toFixed(6) + "," + sw.lng.toFixed(6);
+            
             if(confirm("¿Guardar zona?")) {
                 sendCmd("CONFIG");
-                setTimeout(()=>{ sendCmd(str); showMsg("Guardando...", "Enviando WiFi"); setTimeout(()=>sendCmd("GEOJSON"), 3000); }, 500);
+                setTimeout(()=>{ 
+                    sendCmd(str); 
+                    showMsg("Guardando...", "Enviando WiFi"); 
+                    setTimeout(()=>sendCmd("GEOJSON"), 3000); 
+                }, 500);
             }
             stopDrawing();
         }
@@ -262,7 +325,7 @@
             document.getElementById('msg-overlay').style.display='flex';
         }
         function hideMsg() { document.getElementById('msg-overlay').style.display='none'; }
-    <\/script>
+    </script>
 </body>
 </html>
             `);
