@@ -1,399 +1,362 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuración GPS</title>
-    <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .btn-launch { 
-            padding: 20px 40px; font-size: 18px; font-weight: bold; 
-            background: #e67e22; color: white; border: none; border-radius: 8px; 
-            cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: 0.2s;
-        }
-        .btn-launch:active { transform: scale(0.95); }
-        .note { margin-top: 20px; color: #bdc3c7; font-size: 14px; text-align: center; max-width: 90%; line-height: 1.6; background: #333; padding: 15px; border-radius: 8px; }
-        b { color: #2ecc71; }
-        .step { margin-bottom: 8px; text-align: left; }
-    </style>
-</head>
-<body>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+#include <TinyGPS++.h>
+#include <Preferences.h>
 
-    <button class="btn-launch" onclick="launchApp()">🚀 ABRIR INTERFAZ</button>
-    
-    <div class="note">
-        <div class="step">1. Abre esta página con Internet.</div>
-        <div class="step">2. Ve a WiFi y conéctate a: <b>GEOCERCA_SETUP</b> (12345678).</div>
-        <div class="step">3. Vuelve aquí y presiona el botón.</div>
-        <div class="step">4. La interfaz se conectará sola al ESP32.</div>
-    </div>
+// --- HARDWARE ---
+static const int RXPin = 16; 
+static const int TXPin = 17; 
+static const int LED_TRIGGER = 2; 
+static const uint32_t GPSBaud = 9600;
 
-    <script>
-        function launchApp() {
-            const win = window.open("", "GeocercaInterface", "width=1100,height=700,menubar=no,toolbar=no,location=no,status=no");
-            
-            win.document.write(`
+// --- AJUSTES ---
+const double HDOP_STRICT = 3.0; 
+const int polyPoints = 4;
+double polyLat[polyPoints]; 
+double polyLon[polyPoints]; 
+
+TinyGPSPlus gps;
+Preferences preferences; 
+WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
+
+bool clientConnected = false;
+bool modoConfig = false;
+bool zonaCargada = false;
+
+// --- INTERFAZ WEB (HTML/JS/CSS) GUARDADA EN EL CHIP ---
+const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monitor WiFi</title>
+    <title>Geocerca WiFi Manager</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { margin: 0; display: flex; flex-direction: row; height: 100vh; height: 100dvh; font-family: 'Segoe UI', Arial, sans-serif; background: #2c3e50; overflow: hidden; }
+        body { margin: 0; display: flex; flex-direction: row; height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; background: #2c3e50; overflow: hidden; }
         
-        #sidebar { width: 300px; background-color: #2c3e50; color: white; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 2000; flex-shrink: 0; overflow-y: auto; border-right: 1px solid #444; }
+        #sidebar { width: 300px; background-color: #2c3e50; color: white; display: flex; flex-direction: column; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 2000; overflow-y: auto; }
+        h2 { text-align: center; margin: 0 0 15px 0; font-size: 18px; color: #ecf0f1; border-bottom: 1px solid #444; padding-bottom: 10px; }
         
-        h2 { text-align: center; margin: 0 0 15px 0; font-size: 18px; color: #ecf0f1; letter-spacing: 1px; border-bottom: 1px solid #444; padding-bottom: 10px; }
-        .label-title { font-size: 11px; color: #bdc3c7; margin-top: 15px; font-weight: bold; text-transform: uppercase; }
+        .status-box { padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 12px; }
+        #lbl-connection { background-color: #f39c12; color: white; } 
         
-        .status-container { display: flex; gap: 5px; width: 100%; }
-        .status-box { padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; margin-top: 5px; font-size: 12px; flex: 1; }
+        .data-panel { background-color: #34495e; padding: 8px; border-radius: 4px; margin-top: 10px; text-align: center; border: 1px solid #4a6278; }
+        .coord-text { font-family: monospace; font-size: 13px; color: #3498db; font-weight: bold; display: block; }
         
-        /* Colores de estado */
-        .conn-off { background-color: #c0392b; color: white; }
-        .conn-on { background-color: #27ae60; color: white; }
+        button { padding: 12px; margin-top: 8px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; }
+        .btn-blue { background-color: #2980b9; } .btn-purple { background-color: #8e44ad; } 
+        .btn-orange { background-color: #d35400; } .btn-red { background-color: #c0392b; }
         
-        #lbl-zone-status { background-color: #95a5a6; color: white; transition: 0.3s; }
-
-        .data-panel { background-color: #34495e; padding: 8px; border-radius: 4px; margin-top: 5px; text-align: center; border: 1px solid #4a6278; }
-        .coord-text { font-family: 'Courier New', monospace; font-size: 13px; color: #3498db; font-weight: bold; display: block; }
+        #map { flex-grow: 1; height: 100%; }
         
-        #lbl-instruction { color: #f1c40f; text-align: center; font-style: italic; min-height: 20px; margin-top: 10px; font-size: 12px; font-weight: bold; }
-
-        .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
-        
-        button { padding: 12px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; font-size: 13px; width: 100%; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        button:active { transform: scale(0.98); }
-        button:disabled { background-color: #555 !important; color: #aaa !important; cursor: not-allowed; opacity: 0.6; box-shadow: none; }
-        
-        .btn-blue { background-color: #2980b9; } 
-        .btn-purple { background-color: #8e44ad; } 
-        .btn-orange { background-color: #d35400; } 
-        .btn-red { background-color: #c0392b; } 
-        .btn-gray { background-color: #7f8c8d; }
-
-        #map-container { flex-grow: 1; position: relative; height: 100%; }
-        #map { width: 100%; height: 100%; }
-        #touch-pad { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3000; background: rgba(0,0,0,0); display: none; touch-action: none; cursor: crosshair; }
-
-        /* OVERLAY CARGA */
-        #msg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(33, 43, 54, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 5000; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.3s ease; }
-        .loading-card { background: white; padding: 30px 50px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; animation: popUp 0.4s ease; min-width: 250px; }
-        .loading-spinner { width: 50px; height: 50px; border: 5px solid #ecf0f1; border-top: 5px solid #3498db; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px auto; }
-        #overlay-title { font-size: 20px; color: #2c3e50; margin: 0 0 8px 0; font-weight: 800; }
-        #overlay-desc { font-size: 14px; color: #7f8c8d; margin: 0; font-weight: 500; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes popUp { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
         /* MODAL WIFI */
         #wifi-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 6000; display: none; justify-content: center; align-items: center; }
-        .wifi-list-box { background: #2c3e50; width: 90%; max-width: 400px; max-height: 80vh; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.7); border: 1px solid #444; }
-        .wifi-header { padding: 15px; background: #34495e; color: white; text-align: center; font-weight: bold; font-size: 16px; border-bottom: 1px solid #444; }
+        .wifi-list-box { background: #2c3e50; width: 90%; max-width: 400px; max-height: 80vh; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #444; }
+        .wifi-header { padding: 15px; background: #34495e; color: white; text-align: center; font-weight: bold; }
         .wifi-content { overflow-y: auto; flex-grow: 1; padding: 10px; }
-        .wifi-item { padding: 15px; border-bottom: 1px solid #444; color: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+        .wifi-item { padding: 12px; border-bottom: 1px solid #444; color: white; cursor: pointer; display: flex; justify-content: space-between; }
         .wifi-item:hover { background: #2980b9; }
-        .wifi-rssi { font-size: 11px; color: #bdc3c7; background: #222; padding: 3px 6px; border-radius: 4px; }
-        .wifi-footer { padding: 10px; background: #34495e; text-align: center;}
-
-        @media (max-width: 768px) {
-            body { flex-direction: column-reverse; } 
-            #sidebar { width: 100%; height: auto; max-height: 50%; padding: 10px; border-top: 3px solid #e67e22; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); gap: 3px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-            #map-container { flex: 1; min-height: 50%; }
-            h2 { display: none; } .label-title { display: none; }
-            .status-container { margin: 0; gap: 5px; }
-            .status-box { padding: 6px; font-size: 11px; margin: 0; }
-            .data-panel { padding: 4px; display: flex; justify-content: space-around; margin: 0; }
-            .coord-text { font-size: 11px; }
-            .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; margin-bottom: 10px; }
-            .action-buttons button { margin: 0; padding: 12px; font-size: 12px; height: 100%; }
-            .btn-red { grid-column: span 2; }
-            #lbl-instruction { margin: 2px 0; min-height: auto; font-size: 11px; }
-        }
     </style>
 </head>
 <body>
 
-    <!-- PANEL DE CONTROL -->
     <div id="sidebar">
         <h2>CERCA VIRTUAL</h2>
+        <div id="lbl-connection" class="status-box">CONECTADO A ESP32</div>
         
-        <!-- ESTADOS -->
-        <div class="status-container">
-            <div id="lbl-connection" class="status-box conn-off">Buscando ESP32...</div>
-            <div id="lbl-zone-status" class="status-box">---</div>
-        </div>
-
-        <!-- COORDENADAS -->
         <div class="data-panel">
-            <div class="label-title" style="margin:0 0 5px 0; display:block; font-size:9px;">POSICIÓN ACTUAL</div>
-            <div style="display:flex; justify-content: space-around;">
-                <span id="val-lat" class="coord-text">Lat: 0.00000</span>
-                <span id="val-lon" class="coord-text">Lon: 0.00000</span>
-            </div>
+            <span id="val-lat" class="coord-text">Lat: 0.00000</span>
+            <span id="val-lon" class="coord-text">Lon: 0.00000</span>
         </div>
 
-        <div id="lbl-instruction"></div>
-
-        <!-- BOTONES (Sin botón de conectar manual) -->
-        <div class="action-buttons">
-            <button id="btn-wifi" class="btn-blue" onclick="scanNetworks()" disabled>🔍 BUSCAR REDES</button>
-            <button id="btn-manual" class="btn-purple" onclick="configManual()" disabled>⚙ MANUAL</button>
-            <button id="btn-draw" class="btn-orange" onclick="startDrawing()" disabled>✏ DIBUJAR CERCA</button>
-            <button id="btn-cancel" class="btn-gray" style="display:none;" onclick="stopDrawing()">❌ CANCELAR</button>
-            <button id="btn-reset" class="btn-red" onclick="factoryReset()" disabled>🗑 BORRAR DATOS</button>
-        </div>
+        <button class="btn-blue" onclick="scanNetworks()">🔍 BUSCAR REDES WIFI</button>
+        <button class="btn-purple" onclick="configManual()">⚙ MANUAL</button>
+        <button class="btn-orange" onclick="startDrawing()">✏ DIBUJAR</button>
+        <button class="btn-red" onclick="factoryReset()">🗑 BORRAR</button>
     </div>
 
-    <!-- MAPA -->
-    <div id="map-container">
-        <div id="map"></div>
-        <div id="touch-pad"></div>
-    </div>
+    <div id="map"></div>
 
-    <!-- PANTALLAS MODALES -->
-    <div id="msg-overlay">
-        <div class="loading-card">
-            <div class="loading-spinner"></div>
-            <div id="overlay-title">Conectando...</div>
-            <div id="overlay-desc">Accediendo a 192.168.4.1</div>
-        </div>
-    </div>
-
+    <!-- MODAL LISTA WIFI -->
     <div id="wifi-modal">
         <div class="wifi-list-box">
             <div class="wifi-header">SELECCIONA TU RED</div>
             <div id="wifi-container" class="wifi-content">Escaneando...</div>
-            <div class="wifi-footer">
-                <button class="btn-red" onclick="closeWifiModal()">CANCELAR</button>
+            <div class="wifi-footer" style="padding:10px; text-align:center;">
+                <button class="btn-red" onclick="document.getElementById('wifi-modal').style.display='none'">CANCELAR</button>
             </div>
         </div>
     </div>
 
     <script>
-        let socket;
-        let map, fenceLayer, markersLayer, myMarker;
-        let isConnected = false;
-        let startLatLng = null, tempRect = null;
-        let retryInterval = null;
+        let socket, map, fenceLayer, markersLayer, myMarker;
+        let isDrawing = false, startLatLng = null, tempRect = null;
 
         window.onload = () => {
             map = L.map('map', {zoomControl: false}).setView([4.570, -75.641], 16);
-            L.control.zoom({ position: 'topright' }).addTo(map);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
-            fenceLayer = L.layerGroup().addTo(map); tempLayer = L.layerGroup().addTo(map);
+            fenceLayer = L.layerGroup().addTo(map);
             
-            // Eventos Vidrio
-            const pad = document.getElementById('touch-pad');
-            pad.addEventListener('touchstart', handleInputStart, {passive: false});
-            pad.addEventListener('touchmove', handleInputMove, {passive: false});
-            pad.addEventListener('touchend', handleInputEnd, {passive: false});
-            pad.addEventListener('mousedown', handleInputStart);
-            pad.addEventListener('mousemove', handleInputMove);
-            pad.addEventListener('mouseup', handleInputEnd);
-            
-            // INTENTO DE CONEXIÓN AUTOMÁTICA AL ABRIR
-            connectAuto();
+            // Eventos Dibujo
+            map.on('mousedown', onDragStart); map.on('mousemove', onDragMove); map.on('mouseup', onDragEnd);
+            map.on('touchstart', onDragStart); map.on('touchmove', onDragMove); map.on('touchend', onDragEnd);
+
+            connectSocket();
         };
 
-        function setControlsState(enabled) {
-            document.getElementById('btn-wifi').disabled = !enabled;
-            document.getElementById('btn-manual').disabled = !enabled;
-            document.getElementById('btn-draw').disabled = !enabled;
-            document.getElementById('btn-reset').disabled = !enabled;
-        }
-
-        // --- CONEXIÓN AUTOMÁTICA Y RECONEXIÓN ---
-        function connectAuto() {
-            if(isConnected) return;
-            
-            const wsUrl = "ws://192.168.4.1:81";
-            socket = new WebSocket(wsUrl);
-
-            socket.onopen = function() {
-                isConnected = true;
-                const lbl = document.getElementById('lbl-connection');
-                lbl.innerText = "CONECTADO";
-                lbl.className = "status-box conn-on";
-                
-                setControlsState(true);
-                hideMsg();
-                if(retryInterval) clearInterval(retryInterval);
-                socket.send("GEOJSON"); // Pedir datos iniciales
-            };
-
-            socket.onmessage = function(event) { processMsg(event.data); };
-
-            socket.onclose = function() {
-                handleDisconnection();
-            };
-
-            socket.onerror = function() {
-                // Silencioso, reintentará
-                socket.close(); 
-            };
-        }
-        
-        function handleDisconnection() {
-            isConnected = false;
-            setControlsState(false);
-            const lbl = document.getElementById('lbl-connection');
-            lbl.innerText = "DESCONECTADO";
-            lbl.className = "status-box conn-off";
-            
-            // Reintentar cada 2 segundos si se cae
-            if(!retryInterval) {
-                retryInterval = setInterval(connectAuto, 2000);
-            }
+        function connectSocket() {
+            socket = new WebSocket('ws://' + window.location.hostname + ':81');
+            socket.onopen = () => socket.send("GEOJSON");
+            socket.onmessage = (event) => processMsg(event.data);
         }
 
         function processMsg(msg) {
-            if(msg.includes("GEOJSON")) hideMsg();
-            
-            if (msg.startsWith("DATA:")) {
-                try { updateUI(JSON.parse(msg.replace("DATA:", ""))); } catch(e){}
-            } else if (msg.startsWith("GEOJSON:")) {
-                try { drawFence(msg.replace("GEOJSON:", "")); } catch(e){}
-            } else if (msg.startsWith("NETWORKS:")) {
-                showWifiList(msg.replace("NETWORKS:", ""));
-                hideMsg();
-            } else if (msg.startsWith("MSG:")) {
-                alert(msg.replace("MSG:", ""));
-            }
+            if (msg.startsWith("DATA:")) updateUI(JSON.parse(msg.replace("DATA:", "")));
+            else if (msg.startsWith("GEOJSON:")) drawFence(msg.replace("GEOJSON:", ""));
+            else if (msg.startsWith("NETWORKS:")) showWifiList(msg.replace("NETWORKS:", ""));
         }
 
-        // --- GESTOR DE WIFI ---
+        // --- WIFI MANAGER ---
         function scanNetworks() {
-            showMsg("Escaneando...", "Buscando redes WiFi...");
-            if(socket && socket.readyState === WebSocket.OPEN) {
-                socket.send("SCAN");
-            }
+            document.getElementById("wifi-modal").style.display = "flex";
+            document.getElementById("wifi-container").innerHTML = "Escaneando...";
+            socket.send("SCAN");
         }
 
         function showWifiList(jsonStr) {
             const list = JSON.parse(jsonStr);
             const container = document.getElementById("wifi-container");
             container.innerHTML = "";
-            
-            if(list.length === 0) container.innerHTML = "<p style='text-align:center; color:#ccc'>No se encontraron redes</p>";
+            if(list.length === 0) container.innerHTML = "Sin redes.";
             
             list.forEach(net => {
                 const div = document.createElement("div");
                 div.className = "wifi-item";
-                div.innerHTML = \`<span>\${net.ssid}</span> <span class="wifi-rssi">\${net.rssi} dBm</span>\`;
-                div.onclick = () => selectNetwork(net.ssid);
+                div.innerHTML = `<span>${net.ssid}</span> <small>${net.rssi} dB</small>`;
+                div.onclick = () => {
+                    const pass = prompt("Clave para " + net.ssid + ":");
+                    if(pass !== null) socket.send("CONNECT:" + net.ssid + "," + pass);
+                };
                 container.appendChild(div);
             });
-            
-            document.getElementById("wifi-modal").style.display = "flex";
         }
 
-        function selectNetwork(ssid) {
-            const pass = prompt("Contraseña para: " + ssid);
-            if(pass !== null) {
-                socket.send("SET_WIFI:" + ssid + "," + pass);
-                closeWifiModal();
-                showMsg("Guardando...", "El ESP32 se reiniciará en la nueva red...");
-            }
-        }
-        function closeWifiModal() { document.getElementById("wifi-modal").style.display = "none"; }
-
-        function sendCmd(cmd) { if(socket && socket.readyState === WebSocket.OPEN) socket.send(cmd); }
-
+        // --- UI ---
         function updateUI(data) {
             document.getElementById('val-lat').innerText = "Lat: " + data.lat.toFixed(5);
             document.getElementById('val-lon').innerText = "Lon: " + data.lon.toFixed(5);
-            const b = document.getElementById('lbl-zone-status');
-            if(data.status==="INSIDE"){ b.innerText="DENTRO"; b.style.backgroundColor="#27ae60"; }
-            else if(data.status==="ALARM"){ b.innerText="!!! ALARMA !!!"; b.style.backgroundColor="#c0392b"; }
-            else { b.innerText="BUSCANDO..."; b.style.backgroundColor="#3498db"; }
-            
             if(!myMarker) myMarker = L.marker([data.lat, data.lon]).addTo(map);
             else myMarker.setLatLng([data.lat, data.lon]);
         }
 
         function drawFence(jsonStr) {
-            const data = JSON.parse(jsonStr);
-            const coords = data.features[0].geometry.coordinates[0];
-            const latlngs = coords.map(p => [p[1], p[0]]);
-            fenceLayer.clearLayers();
-            L.polygon(latlngs, {color:'blue', fillOpacity:0.1}).addTo(fenceLayer);
-            latlngs.pop();
-            latlngs.forEach(p => L.circleMarker(p, {radius:5, color:'blue'}).addTo(fenceLayer));
-            if(latlngs.length>0) map.fitBounds(L.polygon(latlngs).getBounds());
+            try {
+                const data = JSON.parse(jsonStr);
+                const coords = data.features[0].geometry.coordinates[0];
+                const latlngs = coords.map(p => [p[1], p[0]]);
+                fenceLayer.clearLayers();
+                L.polygon(latlngs, {color:'blue'}).addTo(fenceLayer);
+            } catch(e){}
         }
 
         // --- DIBUJO ---
-        function startDrawing() {
-            document.getElementById('touch-pad').style.display = 'block';
-            document.getElementById('btn-draw').style.display = 'none';
-            document.getElementById('btn-cancel').style.display = 'block';
-            document.getElementById('lbl-instruction').innerText = "ARRASTRA EN EL MAPA";
+        function onDragStart(e) {
+            if (!isDrawing) return;
+            startLatLng = e.latlng;
+            tempRect = L.rectangle([startLatLng, startLatLng], {color:"red"}).addTo(map);
         }
-        function stopDrawing() {
-            document.getElementById('touch-pad').style.display = 'none';
-            document.getElementById('btn-draw').style.display = 'block';
-            document.getElementById('btn-cancel').style.display = 'none';
-            document.getElementById('lbl-instruction').innerText = "";
-            tempLayer.clearLayers(); startLatLng=null; tempRect=null;
+        function onDragMove(e) {
+            if (!isDrawing || !startLatLng) return;
+            tempRect.setBounds([startLatLng, e.latlng]);
         }
-        function getMapCoords(e) {
-            let cx, cy;
-            if(e.type.startsWith('touch')) { cx=e.touches[0].clientX; cy=e.touches[0].clientY; }
-            else { cx=e.clientX; cy=e.clientY; }
-            const rect = document.getElementById('map').getBoundingClientRect();
-            return map.containerPointToLatLng([cx-rect.left, cy-rect.top]);
-        }
-        function handleInputStart(e) {
-            if(e.cancelable) e.preventDefault();
-            startLatLng = getMapCoords(e);
-            tempLayer.clearLayers();
-            tempRect = L.rectangle([startLatLng, startLatLng], {color:"red", weight:2}).addTo(tempLayer);
-        }
-        function handleInputMove(e) {
-            if(e.cancelable) e.preventDefault();
-            if(!startLatLng || !tempRect) return;
-            tempRect.setBounds([startLatLng, getMapCoords(e)]);
-        }
-        function handleInputEnd(e) {
-            if(e.cancelable) e.preventDefault();
-            if(!startLatLng || !tempRect) return;
+        function onDragEnd(e) {
+            if (!isDrawing || !startLatLng) return;
             const b = tempRect.getBounds();
             const ne = b.getNorthEast(); const sw = b.getSouthWest();
             const str = ne.lat.toFixed(6) + "," + sw.lng.toFixed(6) + "," + ne.lat.toFixed(6) + "," + ne.lng.toFixed(6) + "," + sw.lat.toFixed(6) + "," + ne.lng.toFixed(6) + "," + sw.lat.toFixed(6) + "," + sw.lng.toFixed(6);
-            
-            if(confirm("¿Guardar zona?")) {
-                sendCmd("CONFIG");
-                setTimeout(()=>{ 
-                    sendCmd(str); 
-                    showMsg("Guardando...", "Enviando WiFi"); 
-                    setTimeout(()=>sendCmd("GEOJSON"), 3000); 
-                }, 500);
-            }
-            stopDrawing();
+            if(confirm("¿Guardar zona?")) socket.send("SAVE:" + str);
+            map.removeLayer(tempRect); isDrawing = false;
         }
-        function configManual() {
-            const val = prompt("Coords:\nLat1,Lon1...");
-            if(val) { sendCmd("CONFIG"); setTimeout(()=>{ sendCmd(val); showMsg("Guardando..."); setTimeout(()=>sendCmd("GEOJSON"), 3000); }, 500); }
-        }
-        function factoryReset() {
-            if(confirm("¿Borrar zona?")) { sendCmd("RESET"); fenceLayer.clearLayers(); alert("Zona borrada"); }
-        }
-        
-        function showMsg(t, d) {
-            document.getElementById('overlay-title').innerText = t;
-            document.getElementById('overlay-desc').innerText = d || "Espere...";
-            document.getElementById('msg-overlay').style.display = 'flex';
-        }
-        function hideMsg() { document.getElementById('msg-overlay').style.display = 'none'; }
-    <\/script>
-</body>
-</html>
-            `);
-            win.document.close();
-        }
+
+        function startDrawing() { isDrawing = true; alert("Arrastra en el mapa"); }
+        function configManual() { const v = prompt("Coords:"); if(v) socket.send("SAVE:" + v); }
+        function factoryReset() { if(confirm("Borrar?")) socket.send("RESET"); }
     </script>
 </body>
 </html>
+)rawliteral";
+
+// --- FUNCIONES ESP32 ---
+
+void handleRoot() { server.send(200, "text/html", index_html); }
+
+void escanearRedes() {
+  int n = WiFi.scanNetworks();
+  String json = "NETWORKS:[";
+  for (int i = 0; i < n; ++i) {
+    if(i>0) json += ",";
+    json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i)) + "}";
+  }
+  json += "]";
+  webSocket.broadcastTXT(json);
+  WiFi.scanDelete();
+}
+
+void guardarWiFi(String datos) {
+  String payload = datos.substring(8); // Quitar "CONNECT:"
+  int comma = payload.indexOf(',');
+  if(comma > 0) {
+      String s = payload.substring(0, comma);
+      String p = payload.substring(comma + 1);
+      
+      preferences.begin("wifi_conf", false);
+      preferences.putString("ssid", s);
+      preferences.putString("pass", p);
+      preferences.end();
+      
+      webSocket.broadcastTXT("MSG:Guardado. Reiniciando...");
+      delay(1000);
+      ESP.restart();
+  }
+}
+
+void guardarZona(String d) {
+    double tLat[4], tLon[4];
+    int idx = 0, next = 0;
+    for (int i = 0; i < 8; i++) {
+      next = d.indexOf(',', idx);
+      String s = (next == -1) ? d.substring(idx) : d.substring(idx, next);
+      s.trim();
+      double v = s.toDouble();
+      if (v == 0.0 && s != "0") return;
+      if (i % 2 == 0) tLat[i/2] = v; else tLon[i/2] = v;
+      if (next == -1 && i < 7) return;
+      idx = next + 1;
+    }
+    preferences.begin("geocerca", false);
+    for(int i=0; i<4; i++) {
+      polyLat[i] = tLat[i]; polyLon[i] = tLon[i];
+      preferences.putDouble(("la"+String(i)).c_str(), tLat[i]);
+      preferences.putDouble(("lo"+String(i)).c_str(), tLon[i]);
+    }
+    preferences.putBool("init", true);
+    preferences.end();
+    zonaCargada = true;
+    sendGeoJSON();
+}
+
+void sendGeoJSON() {
+    if(!zonaCargada) return;
+    String json = "GEOJSON:{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[";
+    for(int i=0; i<4; i++) json += "[" + String(polyLon[i], 7) + "," + String(polyLat[i], 7) + "],";
+    json += "[" + String(polyLon[0], 7) + "," + String(polyLat[0], 7) + "]";
+    json += "]]}}]}";
+    webSocket.broadcastTXT(json);
+}
+
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+    if(type == WStype_CONNECTED) {
+        clientConnected = true;
+        if(zonaCargada) sendGeoJSON();
+    }
+    else if(type == WStype_TEXT) {
+        String cmd = (char*)payload;
+        if (cmd == "SCAN") escanearRedes();
+        else if (cmd.startsWith("CONNECT:")) guardarWiFi(cmd);
+        else if (cmd.startsWith("SAVE:")) guardarZona(cmd.substring(5));
+        else if (cmd == "GEOJSON") sendGeoJSON();
+        else if (cmd == "RESET") {
+           preferences.begin("geocerca", false); preferences.clear(); preferences.end();
+           zonaCargada = false; digitalWrite(LED_TRIGGER, LOW);
+           sendGeoJSON(); // Limpiar mapa
+        }
+    }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial2.begin(GPSBaud, SERIAL_8N1, RXPin, TXPin);
+  pinMode(LED_TRIGGER, OUTPUT);
+  digitalWrite(LED_TRIGGER, LOW);
+  
+  // GPS OPTIMIZADO
+  Serial2.println("$PCAS04,5*1C"); delay(250);
+  Serial2.println("$PCAS11,3*1E"); delay(250);
+
+  preferences.begin("geocerca", true);
+  zonaCargada = preferences.isKey("init");
+  if(zonaCargada){
+     for(int i=0; i<polyPoints; i++){
+       polyLat[i] = preferences.getDouble(("la"+String(i)).c_str(), 0);
+       polyLon[i] = preferences.getDouble(("lo"+String(i)).c_str(), 0);
+     }
+  }
+  preferences.end();
+
+  // 1. INTENTAR CONECTAR A WIFI GUARDADO
+  preferences.begin("wifi_conf", true);
+  String s = preferences.getString("ssid", "");
+  String p = preferences.getString("pass", "");
+  preferences.end();
+
+  WiFi.mode(WIFI_AP_STA); // Modo Híbrido (Hotspot + Cliente)
+  
+  // Siempre crear Hotspot para configuración
+  WiFi.softAP("GEOCERCA_SETUP", "12345678");
+  Serial.println("Hotspot: GEOCERCA_SETUP (192.168.4.1)");
+
+  // Si hay credenciales, conectar a internet
+  if(s.length() > 0) {
+      WiFi.begin(s.c_str(), p.c_str());
+      Serial.print("Conectando a: "); Serial.println(s);
+  }
+
+  server.on("/", handleRoot);
+  server.begin();
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+}
+
+void loop() {
+  webSocket.loop();
+  server.handleClient();
+
+  while (Serial2.available() > 0) {
+    gps.encode(Serial2.read());
+    if (gps.location.isUpdated()) {
+      double lat = gps.location.lat();
+      double lon = gps.location.lng();
+      double hdop = gps.hdop.hdop();
+
+      if (hdop > HDOP_STRICT || hdop == 0.0) continue;
+
+      String st = "NO_CONFIG";
+      bool dentro = false;
+
+      if(zonaCargada) {
+         int i, j = polyPoints - 1;
+         for (i = 0; i < polyPoints; j = i++) {
+           if (((polyLat[i] > lat) != (polyLat[j] > lat)) &&
+              (lon < (polyLon[j] - polyLon[i]) * (lat - polyLat[i]) / (polyLat[j] - polyLat[i]) + polyLon[i])) {
+              dentro = !dentro;
+           }
+         }
+         if(dentro) { digitalWrite(LED_TRIGGER, LOW); st = "INSIDE"; }
+         else { digitalWrite(LED_TRIGGER, HIGH); st = "ALARM"; }
+      } else { digitalWrite(LED_TRIGGER, LOW); }
+
+      if (clientConnected) {
+         static unsigned long t = 0;
+         if(millis() - t > 500) {
+            String json = "DATA:{\"lat\":" + String(lat, 7) + ",\"lon\":" + String(lon, 7) + ",\"status\":\"" + st + "\"}";
+            webSocket.broadcastTXT(json);
+            t = millis();
+         }
+      }
+    }
+  }
+}
